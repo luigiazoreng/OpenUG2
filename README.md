@@ -186,6 +186,13 @@ make debug           # desktop build + Dear ImGui developer menu (dev only)
 Cross-compiling for another ARM target is just the compiler swap, e.g.
 `CC=aarch64-linux-gnu-gcc make gles`.
 
+An isolated PS Vita bring-up target is available with `make vita` (VitaSDK and
+the `sdl2_vitagl` package required). It builds `build/vita/openug2-vita.vpk`
+with a textured indexed triangle, controller diagnostics and the production
+240SX parser probe against `ux0:data/openug2`. It is not yet a playable port.
+The VPK contains no original game data. See [the portability audit and device
+acceptance gates](docs/VITA_PORT.md) and [complete API inventory](docs/VITA_API_INVENTORY.md).
+
 ## Developer menu (ImGui)
 
 Build with **`make debug`**, run the engine, then press **`1`** to open the

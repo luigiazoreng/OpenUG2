@@ -5,6 +5,7 @@
 #   make menu          desktop build with the temporary standalone menu
 #   make gles          OpenGL ES 2.0 build (embedded/mobile ARM)
 #   make debug         desktop build + Dear ImGui debug overlay
+#   make vita          isolated SDL2/vitaGL bring-up VPK (requires VitaSDK)
 #   make run DATA=DIR  build + run against your NFSU2 data directory
 #   make clean
 #
@@ -15,11 +16,16 @@ CFLAGS  ?= -O2 -std=c99 -Wall -Wextra
 # nfsu2.h is a static-function single-header parser shared by several modules;
 # each module uses only part of it, so silence the per-TU unused copies.
 CFLAGS  += -Wno-unused-function
-SDL_CFLAGS := $(shell sdl2-config --cflags)
-SDL_LIBS   := $(shell sdl2-config --libs)
+SDL_CONFIG ?= sdl2-config
+SDL_CFLAGS = $(shell $(SDL_CONFIG) --cflags)
+SDL_LIBS   = $(shell $(SDL_CONFIG) --libs)
 DATA    ?= .
 
 UNAME := $(shell uname)
+# Linux hides M_PI and scandir/alphasort under strict -std=c99 otherwise.
+ifeq ($(UNAME),Linux)
+  CFLAGS += -D_DEFAULT_SOURCE
+endif
 ifeq ($(UNAME),Darwin)
   GL_LIBS := -framework OpenGL
 else
@@ -267,6 +273,23 @@ ai-drive-cli-test: nfsu2
 #   CC=aarch64-linux-gnu-gcc make gles
 gles: $(SRC) $(HDRS) $(GEN)
 	$(CC) $(CFLAGS) -DN2_GLES $(SDL_CFLAGS) $(SRC) -o nfsu2 $(SDL_LIBS) -lGLESv2 -lz -lm
+
+# The bring-up executable deliberately does not link the full engine loop.
+# See docs/VITA_PORT.md for remaining integration and device acceptance gates.
+CMAKE ?= cmake
+VITA_BUILD_DIR ?= build/vita
+VITA_PROFILE ?= ON
+VITA_TITLEID ?= OPENUG200
+vita:
+	@test -n "$(VITASDK)" && test -f "$(VITASDK)/share/vita.toolchain.cmake" || \
+	  { echo "make vita: set VITASDK to an installed VitaSDK (see docs/VITA_PORT.md)" >&2; exit 1; }
+	$(CMAKE) -S platform/vita -B "$(VITA_BUILD_DIR)" \
+	  -DCMAKE_TOOLCHAIN_FILE="$(VITASDK)/share/vita.toolchain.cmake" \
+	  -DCMAKE_BUILD_TYPE=Release -DOPENUG2_VITA_PROFILE=$(VITA_PROFILE) \
+	  -DOPENUG2_VITA_TITLEID=$(VITA_TITLEID)
+	$(CMAKE) --build "$(VITA_BUILD_DIR)"
+
+.PHONY: vita
 
 run: nfsu2
 	./nfsu2 $(DATA)

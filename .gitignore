@@ -27,6 +27,10 @@ scratchpad/
 *.obj
 *.exe
 *.dSYM
+*.vpk
+*.velf
+*.self
+*.sfo
 
 # --- Screenshots / generated ---
 *.png

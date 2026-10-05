@@ -7,6 +7,7 @@
 #  define GL_SILENCE_DEPRECATION 1
 #  include <OpenGL/gl.h>
 #else
+#  define GL_GLEXT_PROTOTYPES 1
 #  include <SDL_opengl.h>
 #endif
 #include "imgui.h"
