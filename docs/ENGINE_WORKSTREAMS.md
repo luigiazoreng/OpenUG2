@@ -1,8 +1,9 @@
 # Engine contributions alongside the Vita port
 
 Reviewed upstream's [open issues](https://github.com/whoismept/OpenUG2/issues)
-on 2026-10-05 against local baseline
-`84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
+on 2026-10-05. The initial coverage baseline remains
+`84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`; the integration branch now uses
+`development` commit `6c9dd091ee3297dea898c78764edf209657ce3d5`.
 The dependencies and file boundaries below are our proposed coordination plan,
 not upstream assignments. Engine contribution PRs target upstream's
 `development` branch, as requested in [#5](https://github.com/whoismept/OpenUG2/issues/5).
@@ -10,7 +11,12 @@ not upstream assignments. Engine contribution PRs target upstream's
 ## Branch and integration policy
 
 The Vita port uses a pinned commit already integrated into upstream `main`.
-Its current engine baseline is `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
+The `integration-development` branch combines the existing bring-up with
+`6c9dd091ee3297dea898c78764edf209657ce3d5`, also integrated into `main` by
+`59c9263dd0299a6f41827caca6536005e4a32cf2`. The original `vita-bringup` branch
+and the issue #7 checkout retain their earlier baseline.
+This candidate has not been homologated: the inherited `ai-drive-test` failure
+is documented in [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md).
 Update that baseline deliberately, after reviewing the upstream changes and
 passing the relevant builds and regressions. Record the new SHA and refresh
 the portability inventory when the baseline changes.
@@ -28,6 +34,20 @@ measurements. Builds and data tests run sequentially with the established RAM
 limits and host-memory reserve.
 
 ## Independent first slices
+
+Execution is sequential: finish and validate one slice before starting the
+next. Each issue gets its own branch. Public issue updates are written only
+after the slice is finished, validated and homologated, with remaining limits
+stated explicitly. No new issue announcement accompanies this integration.
+
+The agreed queue is:
+
+1. Integrate and validate the pinned `development` baseline, preserving #7
+   evidence. Validation found an inherited traffic-contact failure; promotion
+   remains pending. See [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md).
+2. Issue #14: current GL call/ownership inventory and a small proposed C API.
+3. Separate Vita slices: owned uniform state, then a budgeted resource backend.
+4. Issue #8: focused synthetic collision fixtures.
 
 | Workstream | Upstream issue | Independent deliverable | Files / boundary | Integration dependency |
 |---|---|---|---|---|

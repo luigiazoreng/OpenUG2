@@ -1,14 +1,20 @@
 # OpenUG2 → PS Vita: audit and isolated bring-up
 
-Audit date: 2026-10-05. Engine baseline: upstream `whoismept/OpenUG2` main,
-`84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1` (local HEAD matched after fetch).
-Work branch: `vita-bringup`. No old Vita fork is used.
+Audit date: 2026-10-05. Engine baseline: upstream `whoismept/OpenUG2`
+`development`, `6c9dd091ee3297dea898c78764edf209657ce3d5`, also integrated
+into `main` by `59c9263dd0299a6f41827caca6536005e4a32cf2`.
+Work branch: `integration-development`. The original `vita-bringup` and issue #7
+baseline remain preserved. No old Vita fork is used.
 
 This baseline is pinned to a commit integrated into upstream `main`. Upstream
 updates are reviewed and validated at planned integration points. Engine
 contributions use separate issue branches and are checked against `development`
 in a separate checkout before submitting a PR there. The branch policy is
 documented in [ENGINE_WORKSTREAMS.md](ENGINE_WORKSTREAMS.md#branch-and-integration-policy).
+Current integration validation is recorded in
+[DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md); an inherited traffic
+regression prevents homologation. The initial bring-up
+measurements below refer to `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
 
 The product milestone remains a drivable 240SX in **one STREAML4RA region**,
 with the existing WorldResident loader, original user-supplied PC data,
@@ -31,7 +37,7 @@ code is inventoried separately. `third_party/imgui`, host Python tools, test
 executables and preview applications are not production dependencies of Vita.
 Build files, generated shaders and these optional paths were also inspected.
 
-Counts: **74 direct GL names**, **five additional GL entry points loaded by
+Counts: **82 direct GL names**, **five additional GL entry points loaded by
 name**, **34 SDL names**, and **83 libc/POSIX/math/zlib names** in the engine
 source superset. Optional menu/debug code adds fixed-function GL usage; do
 not include those targets in the initial VPK.
@@ -76,10 +82,11 @@ The SDK was installed outside the checkout for validation.
    that an equivalent optimization. Keep pairing and borrowed TPK pointers.
 3. **Uniform readback**: `glGetUniformfv` is absent from both the installed
    vitaGL header and symbols. `render_world_glows`, `render_district_lights`
-   and `render_wheel_mesh` use it to restore previous uniform values. The
-   minimal sustainable engine patch is a renderer state cache/setters for
+   and `render_wheel_mesh` use it to restore previous uniform values. The updated
+   baseline also uses it in road reflections, car environment, rain and HUD.
+   The minimal sustainable engine patch is a renderer state cache/setters for
    these values, not a stub returning zeros. Header availability of the other
-   73 GL names does not prove matching semantics.
+   81 GL names does not prove matching semantics.
 4. **Drive input**: `main` opens a controller but throttle/steering/handbrake
    use `SDL_GetKeyboardState`. Nitro and camera controls also need mapping.
    A backend mapping alone is not engine integration.
@@ -292,7 +299,7 @@ to resolve static link order. A plain SDL2 package is rejected at configure
 time. Build output never goes into `nfsu2`, and `make`, `make gles`, `make debug`
 retain their roles.
 
-Local validation (2026-10-05):
+Initial bring-up validation (2026-10-05, engine `84ab8b3`):
 
 - `make vita`: passed with the package versions above. Output:
   `build/vita/openug2-vita.vpk`, **1,148,702 bytes**. ELF is ARM32 little-endian,
