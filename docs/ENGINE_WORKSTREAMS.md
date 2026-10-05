@@ -4,7 +4,28 @@ Reviewed upstream's [open issues](https://github.com/whoismept/OpenUG2/issues)
 on 2026-10-05 against local baseline
 `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
 The dependencies and file boundaries below are our proposed coordination plan,
-not upstream assignments. Work is staged for upstream's `development` branch.
+not upstream assignments. Engine contribution PRs target upstream's
+`development` branch, as requested in [#5](https://github.com/whoismept/OpenUG2/issues/5).
+
+## Branch and integration policy
+
+The Vita port uses a pinned commit already integrated into upstream `main`.
+Its current engine baseline is `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
+Update that baseline deliberately, after reviewing the upstream changes and
+passing the relevant builds and regressions. Record the new SHA and refresh
+the portability inventory when the baseline changes.
+
+Keep one branch per engine issue. Validate each contribution against a named
+`development` commit in a separate checkout before opening its PR, resolving
+conflicts there and recording the tested SHA. The PR destination is
+`development`; the roadmap does not mandate that every feature branch originate
+there. Integrate accepted engine changes into the Vita branch at a planned
+baseline update.
+
+Preserve coverage reports as evidence for the engine/input version that produced
+them. A changed engine baseline requires a new report directory and fresh
+measurements. Builds and data tests run sequentially with the established RAM
+limits and host-memory reserve.
 
 ## Independent first slices
 
@@ -50,5 +71,5 @@ independent machine reproduces the rows. Same-machine repetitions, another build
 and a Vita emulator do not satisfy that requirement. Any suspected defect needs
 a focused reproduction before it is treated as an engine bug.
 
-No upstream issue comment, assignment or PR has been posted from this workspace.
-Coordinate a claim in #7 when publishing the prepared contribution.
+The investigation is registered in [issue #7](https://github.com/whoismept/OpenUG2/issues/7#issuecomment-6002313415).
+No upstream PR has been opened. Second-machine reproduction remains pending.

@@ -4,6 +4,12 @@ Audit date: 2026-10-05. Engine baseline: upstream `whoismept/OpenUG2` main,
 `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1` (local HEAD matched after fetch).
 Work branch: `vita-bringup`. No old Vita fork is used.
 
+This baseline is pinned to a commit integrated into upstream `main`. Upstream
+updates are reviewed and validated at planned integration points. Engine
+contributions use separate issue branches and are checked against `development`
+in a separate checkout before submitting a PR there. The branch policy is
+documented in [ENGINE_WORKSTREAMS.md](ENGINE_WORKSTREAMS.md#branch-and-integration-policy).
+
 The product milestone remains a drivable 240SX in **one STREAML4RA region**,
 with the existing WorldResident loader, original user-supplied PC data,
 960×544 rendering at a target of 30 FPS and physics at 60 Hz. The first patch
