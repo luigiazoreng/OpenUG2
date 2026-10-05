@@ -2,11 +2,11 @@
 
 Branch: `integration-development`.
 
-**Status: candidate integrated and checked, not homologated.** The existing
-traffic-contact regression fails in both this branch and a clean upstream
-checkout. Do not promote this candidate into `vita-bringup` or begin the next
-queue item until that failure is resolved and the affected checks pass.
-Existing compiler warnings also prevent a claim of warning-free acceptance.
+**Status: candidate integrated and checked, not homologated.** The inherited
+traffic-contact regression was reproduced and resolved in the focused change
+described below. Compiler warnings still prevent warning-free acceptance.
+Resolve that remaining gate before promotion into `vita-bringup` or starting
+the next queue item.
 
 ## Provenance and isolation
 
@@ -19,11 +19,13 @@ Existing compiler warnings also prevent a claim of warning-free acceptance.
 - Issue #7 remains on `issue-7-stream-coverage` at `7e95be5` with its previous
   engine, executable, fixed-pose measurements and local captures.
 
-The merge had no textual conflicts. Relative to the pinned upstream source,
-the candidate changes only `src/debugui.cpp` by defining
+The original merge had no textual conflicts. At that stage, relative to the
+pinned upstream source, the candidate changed only `src/debugui.cpp` by defining
 `GL_GLEXT_PROTOTYPES` before the SDL OpenGL header on Linux. The existing
 Makefile compatibility fixes and isolated Vita target remain. Production
-parser, world, physics, AI and renderer implementations match upstream.
+parser, world, physics, AI and renderer implementations matched upstream.
+The subsequent wall-contact precision fix changes `src/physics.c` in isolation;
+the parser, world, AI and renderer still match that pinned upstream source.
 
 Public issue updates are deferred until the relevant slice is complete,
 validated and homologated. This integration publishes no comment or PR.
@@ -55,7 +57,7 @@ Header/symbol availability does not prove device compatibility. The #14
 resource-ownership classification and proposed renderer C API are next work,
 not implemented by this baseline integration.
 
-## Builds and regressions
+## Initial builds and regressions (before the contact fix)
 
 Host: Linux x86_64, GCC 13.3.0. SDL headers were staged outside the
 repository; the installed desktop SDL2 runtime was used. Exact argv, logs and
@@ -121,12 +123,11 @@ The first failing local case has:
 | Observed lateral velocity | 0.0299867578 |
 | Allowed absolute deviation | Less than 0.00001 |
 
-The observed deviation is approximately 0.0000132422. This is an invariant
-failure in the tested compiler/host configuration; its production cause has
-not been established. Do not enlarge the tolerance or disable the test to
-approve the baseline. Trace the contact normal, wall response and accumulated
-correction before proposing a focused fix, retaining the momentum, energy,
-separation and wall-blocking checks.
+The observed deviation is approximately 0.0000132422. This was the invariant
+failure in the initial compiler/host configuration. The subsequent investigation
+identified rounding in wall clipping and closest-point normal construction.
+The fix below retains the tolerance and momentum, energy, separation and
+wall-blocking checks. Initial failure logs are preserved as historical evidence.
 
 With ordinary installed SDL2 development headers, reproduce with
 `make -j1 ai-drive-test`. The exact guarded local invocation was:
@@ -190,7 +191,52 @@ through that comparison. Small-test scope accounting reached the 512 MiB cap
 without terminating a test; this is kernel-accounted memory, not process RSS.
 Sampled peaks are observations, not guarantees about exact maximum allocation.
 
-The native traffic-contact test must pass before baseline homologation. Preserve
-this candidate and its evidence while resolving the failure in a focused change.
+## Focused wall-contact fix and remaining gate
+
+The separate `fix-traffic-contact-regression` branch is based directly on
+`6c9dd09`. Its commit `2a84368` was cherry-picked into this candidate as
+`37aa070`. See [TRAFFIC_CONTACT_REGRESSION.md](TRAFFIC_CONTACT_REGRESSION.md)
+for the cause, implementation and reproduction commands.
+
+Height clipping and closest-point calculations now retain double precision
+until the contact normal is formed. Public contact structures, source geometry
+and vehicle state remain float. The explicit 15-car case fails with the original
+physics and passes with the change, using the original `1e-5` tolerance.
+The full traffic suite also passes. Additional district checks cover repeated
+rotated-wall contacts, both windings and radial normals at actual endpoints.
+
+The focused branch passed district, ground, instance and resident regressions,
+ASan/UBSan traffic and district runs with leak detection, and compilation of
+the physics translation unit using VitaSDK's ARM compiler. Physical Vita
+execution and the CPU cost of double arithmetic remain unmeasured.
+
+After cherry-picking, normal, debug and GLES builds and all five affected
+regression targets passed. Normal and GLES warning-message multisets match
+the initial reference (186 and 190 warnings respectively). Debug rebuilt only
+the changed physics object and emitted 17 inherited warnings; this was an
+incremental build, not a new full-build warning count.
+
+Fresh validation uses a separate external directory:
+
+```text
+/home/luigi/Documents/luigi/nfsu2-data/reports/traffic-contact-integration-2026-10-05/
+```
+
+Both regions were measured again at the frozen poses. All six engine commands
+passed; instance/resident fields match the preserved upstream reference and
+the PNG captures remain byte-identical, with the SHA-256 values recorded above.
+The data-input fingerprint is unchanged. The 121 historical coverage files,
+issue #7 branch and its executable were verified unchanged again. The working
+executable was restored to the newly built normal profile after debug/GLES.
+
+The repeat used the same sequential controls: 512 MiB for normal/GLES/tests,
+768 MiB for debug and 2048 MiB for the real-data scope, with swap disabled and
+a 4096 MiB host reserve. Build/test scopes sampled at most 453.5 MiB and at
+least 6472.6 MiB host available memory. The real-data scope sampled 1124.1 MiB
+and at least 7055.0 MiB host available memory, with the additional 1024 MiB
+process-group RSS guard. Exact observations are in the external reports.
+
+The remaining acceptance task is to resolve inherited compiler warnings in a
+separate branch, then validate warning-free builds and preserved behavior.
 Issue #14 and later queue items remain unstarted. No issue update or PR is
 published from this validation run.

@@ -12,8 +12,9 @@ contributions use separate issue branches and are checked against `development`
 in a separate checkout before submitting a PR there. The branch policy is
 documented in [ENGINE_WORKSTREAMS.md](ENGINE_WORKSTREAMS.md#branch-and-integration-policy).
 Current integration validation is recorded in
-[DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md); an inherited traffic
-regression prevents homologation. The initial bring-up
+[DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md); the inherited traffic
+regression is fixed, while compiler warnings still prevent homologation.
+The initial bring-up
 measurements below refer to `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
 
 The product milestone remains a drivable 240SX in **one STREAML4RA region**,
