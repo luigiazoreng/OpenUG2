@@ -331,7 +331,47 @@ static void test_wall_index_matches_linear(void) {
            hits_total, far_push);
 }
 
+static void test_repeated_rotated_wall_contact(void) {
+    const float bb[6]={-2,-1,0,2,1,1.5f};
+    for(int turn=0;turn<3;turn++)for(int winding=0;winding<2;winding++) {
+        float angle=turn*.71f,co=cosf(angle),sn=sinf(angle);
+        float verts[20]={0};uint16_t idx[6]={0,1,2,0,2,3};
+        const float local[4][3]={{2,-40,0},{2,40,0},{2,40,3},{2,-40,3}};
+        for(int k=0;k<4;k++) {
+            verts[k*5]=co*local[k][0]-sn*local[k][1];
+            verts[k*5+1]=sn*local[k][0]+co*local[k][1];
+            verts[k*5+2]=local[k][2];
+        }
+        if(winding)for(int t=0;t<6;t+=3) {
+            uint16_t tmp=idx[t];idx[t]=idx[t+2];idx[t+2]=tmp;
+        }
+        N2Mesh mesh={.verts=verts,.nverts=4,.idx=idx,.nidx=6,
+                     .cat=N2_OTHER,.scen=N2_SC_WALL};
+        N2Scene scene={&mesh,1,1};
+        float pos[3]={0},vel[2]={-.03f*sn,.03f*co};
+        for(int step=0;step<1000;step++) {
+            pos[0]+=.01f*co;pos[1]+=.01f*sn;
+            vel[0]+=.01f*co;vel[1]+=.01f*sn;
+            PhysWallContact hit;
+            assert(collide_body_mesh_wall(pos,vel,angle,bb,.05f,1.5f,
+                                          &scene,0,0,INFINITY,&hit));
+            assert(hit.mesh==0 && hit.tri>=0 && hit.tri<2);
+            assert(isfinite(pos[0]) && isfinite(pos[1]));
+            assert(fabsf(-vel[0]*sn+vel[1]*co-.03f)<1e-5f);
+            assert(pos[0]*co+pos[1]*sn+2<=2.0001f);
+        }
+        /* A real wall endpoint still has a radial, rather than face, normal. */
+        float x=co*2.5f-sn*40.5f,y=sn*2.5f+co*40.5f;
+        PhysWallContact endpoint;
+        assert(cw_mesh_feature(&scene,0,x,y,1,.05f,1.5f,&endpoint));
+        assert(fabsf(endpoint.nx*co+endpoint.ny*sn-.70710678f)<1e-5f);
+        assert(fabsf(-endpoint.nx*sn+endpoint.ny*co-.70710678f)<1e-5f);
+    }
+    puts("wall normals: repeated rotated contacts preserve tangent; endpoints remain radial");
+}
+
 int main(void) {
+    test_repeated_rotated_wall_contact();
     test_authored_barriers_and_baked_walls();
     test_sloping_curb_is_not_a_rail();
     N2Scene scene;

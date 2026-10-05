@@ -416,6 +416,9 @@ static void traffic_preview_cache(void) {
 }
 
 int main(void) {
+    /* Regression: repeated wall contacts in a long rotated queue must retain
+       tangential velocity, including the heavy car and deep-overlap case. */
+    traffic_pileup(15,2*.71f,0,1,1,3.2f);
     traffic_preview_cache();
     traffic_closed_road();
     traffic_authored_terrain();

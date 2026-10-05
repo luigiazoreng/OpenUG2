@@ -591,16 +591,16 @@ void phys_selftest(void) {
  * by the car's two parallel height planes has at most five vertices (eight
  * slots also accommodate duplicate boundary vertices). Crossing endpoints
  * have different Z, so the interpolation denominator cannot be zero. */
-static int cw_clip_z(const float in[][3], int count, float out[][3],
+static int cw_clip_z(const double in[][3], int count, double out[][3],
                      float z, int keep_above) {
     int n = 0;
     for (int i = 0; i < count; i++) {
-        const float *a = in[i], *b = in[(i+1)%count];
+        const double *a = in[i], *b = in[(i+1)%count];
         int ai = keep_above ? a[2] >= z : a[2] <= z;
         int bi = keep_above ? b[2] >= z : b[2] <= z;
         if (ai) { memcpy(out[n], a, sizeof out[n]); n++; }
         if (ai != bi) {
-            float u = (z - a[2]) / (b[2] - a[2]);
+            double u = (z - a[2]) / (b[2] - a[2]);
             out[n][0] = a[0] + (b[0] - a[0]) * u;
             out[n][1] = a[1] + (b[1] - a[1]) * u;
             out[n][2] = z;
@@ -618,32 +618,32 @@ static int cw_clip_z(const float in[][3], int count, float out[][3],
  * from itself rather than along whatever axis its bounding box prefers. */
 /* Closest points of two XY segments. An intersection must be tested first:
  * endpoint projections alone miss the middle of a long vehicle side. */
-static float cw_segment_pair(float ax,float ay,float bx,float by,
-        const float *p,const float *q,float *carx,float *cary,float *wallx,float *wally) {
-    float ux=bx-ax,uy=by-ay,vx=q[0]-p[0],vy=q[1]-p[1];
-    float det=ux*vy-uy*vx;
-    if(fabsf(det)>1e-9f) {
-        float dx=p[0]-ax,dy=p[1]-ay;
-        float t=(dx*vy-dy*vx)/det,u=(dx*uy-dy*ux)/det;
+static double cw_segment_pair(float ax,float ay,float bx,float by,
+        const double *p,const double *q,double *carx,double *cary,double *wallx,double *wally) {
+    double ux=(double)bx-ax,uy=(double)by-ay,vx=q[0]-p[0],vy=q[1]-p[1];
+    double det=ux*vy-uy*vx;
+    if(fabs(det)>1e-9f) {
+        double dx=p[0]-ax,dy=p[1]-ay;
+        double t=(dx*vy-dy*vx)/det,u=(dx*uy-dy*ux)/det;
         if(t>=0 && t<=1 && u>=0 && u<=1) {
             *carx=*wallx=ax+t*ux;*cary=*wally=ay+t*uy;return 0;
         }
     }
-    float best=1e30f;
+    double best=1e30f;
     for(int i=0;i<4;i++) {
-        float x,y,cx,cy,wx,wy;
+        double x,y,cx,cy,wx,wy;
         if(i<2) {
             cx=i?bx:ax;cy=i?by:ay;
-            float l2=vx*vx+vy*vy;
-            float t=l2>1e-9f?((cx-p[0])*vx+(cy-p[1])*vy)/l2:0;
-            t=pv_clamp(t,0,1);wx=p[0]+t*vx;wy=p[1]+t*vy;
+            double l2=vx*vx+vy*vy;
+            double t=l2>1e-9f?((cx-p[0])*vx+(cy-p[1])*vy)/l2:0;
+            t=t<0?0:t>1?1:t;wx=p[0]+t*vx;wy=p[1]+t*vy;
         } else {
             wx=i==2?p[0]:q[0];wy=i==2?p[1]:q[1];
-            float l2=ux*ux+uy*uy;
-            float t=l2>1e-9f?((wx-ax)*ux+(wy-ay)*uy)/l2:0;
-            t=pv_clamp(t,0,1);cx=ax+t*ux;cy=ay+t*uy;
+            double l2=ux*ux+uy*uy;
+            double t=l2>1e-9f?((wx-ax)*ux+(wy-ay)*uy)/l2:0;
+            t=t<0?0:t>1?1:t;cx=ax+t*ux;cy=ay+t*uy;
         }
-        x=cx-wx;y=cy-wy;float d=x*x+y*y;
+        x=cx-wx;y=cy-wy;double d=x*x+y*y;
         if(d<best){best=d;*carx=cx;*cary=cy;*wallx=wx;*wally=wy;}
     }
     return best;
@@ -679,7 +679,10 @@ static int cw_shape_feature(const N2Scene *s, int mi, float px, float py,
        thickness rather than by their elevation change along a slope. */
     if(embedded_prop_mesh(m))face_min=fmaxf(face_min,WALL_MIN_FACE_SPAN);
     float r2 = r*r;
-    float bestd2 = 1e30f, bcx = 0, bcy = 0, bodyx=px, bodyy=py; int btri = -1;
+    /* Keep clipping and closest points in double until the radial normal is
+       formed. Rounding world-space points can tilt that normal and bleed
+       tangential velocity, including at endpoints created by Z clipping. */
+    double bestd2 = 1e30f, bcx = 0, bcy = 0, bodyx=px, bodyy=py; int btri = -1;
     float ulo = 1e30f, uhi = -1e30f;                 /* union span of contacts */
     float fnx = 0, fny = 0;                          /* winding normal, fallback */
     /* Exact early-out: only an edge within r of segment p..q contributes, and
@@ -705,26 +708,27 @@ static int cw_shape_feature(const N2Scene *s, int mi, float px, float py,
         /* A low curb can gain metres along a hill without becoming a rail. */
         if (face_min>0 && phys_wall_face_height(A,B,C)<face_min) continue;
         if (zhi < cz0 || zlo > cz1) continue;                 /* not at car height */
-        const float *P[8] = { A, B, C };
+        double points[3][3]={{A[0],A[1],A[2]},{B[0],B[1],B[2]},{C[0],C[1],C[2]}};
+        const double *P[8] = { points[0], points[1], points[2] };
         int np = 3;
-        float clipped[8][3], work[8][3];
+        double clipped[8][3], work[8][3];
         if (zlo < cz0 || zhi > cz1) {
-            memcpy(clipped[0], A, sizeof clipped[0]);
-            memcpy(clipped[1], B, sizeof clipped[1]);
-            memcpy(clipped[2], C, sizeof clipped[2]);
+            memcpy(clipped[0], points[0], sizeof clipped[0]);
+            memcpy(clipped[1], points[1], sizeof clipped[1]);
+            memcpy(clipped[2], points[2], sizeof clipped[2]);
             np = cw_clip_z(clipped, 3, work, cz0, 1);
             np = cw_clip_z(work, np, clipped, cz1, 0);
             for (int j = 0; j < np; j++) P[j] = clipped[j];
         }
         int touched = 0;
         for (int e = 0; e < np; e++) {
-            const float *p0 = P[e], *p1 = P[(e+1)%np];
-            float dx = p1[0]-p0[0], dy = p1[1]-p0[1], l2 = dx*dx+dy*dy;
-            float u = l2 > 1e-9f ? ((px-p0[0])*dx + (py-p0[1])*dy) / l2 : 0.0f;
+            const double *p0 = P[e], *p1 = P[(e+1)%np];
+            double dx = p1[0]-p0[0], dy = p1[1]-p0[1], l2 = dx*dx+dy*dy;
+            double u = l2 > 1e-9f ? ((px-p0[0])*dx + (py-p0[1])*dy) / l2 : 0.0f;
             if (u < 0) u = 0; if (u > 1) u = 1;
-            float sx = p0[0]+dx*u, sy = p0[1]+dy*u;
-            float ox = px - sx, oy = py - sy, d2 = ox*ox + oy*oy;
-            float hx=px,hy=py;
+            double sx = p0[0]+dx*u, sy = p0[1]+dy*u;
+            double ox = px - sx, oy = py - sy, d2 = ox*ox + oy*oy;
+            double hx=px,hy=py;
             if(px!=qx || py!=qy)
                 d2=cw_segment_pair(px,py,qx,qy,p0,p1,&hx,&hy,&sx,&sy);
             if (d2 > r2) continue;
@@ -743,10 +747,13 @@ static int cw_shape_feature(const N2Scene *s, int mi, float px, float py,
     float span = uhi - ulo;
     if (span < WALL_MIN_FACE_SPAN) return 0;     /* a seam, not a barrier */
     if (out) {
+        double distance=sqrt(bestd2);
         out->mesh = mi; out->tri = btri; out->cx = bcx; out->cy = bcy;
-        out->dist = sqrtf(bestd2); out->pen = r - out->dist; out->span = span;
-        float ox = bodyx - bcx, oy = bodyy - bcy;
-        if (out->dist > 1e-6f) { out->nx = ox / out->dist; out->ny = oy / out->dist; }
+        out->dist = (float)distance; out->pen = r - out->dist; out->span = span;
+        double ox = bodyx - bcx, oy = bodyy - bcy;
+        if (out->dist > 1e-6f) {
+            out->nx = (float)(ox / distance); out->ny = (float)(oy / distance);
+        }
         else {
             /* A segment can straddle a face. Choose the side of its midpoint
              * and clear the whole segment, not just the intersection point. */
