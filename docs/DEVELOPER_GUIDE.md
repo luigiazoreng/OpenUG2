@@ -5,6 +5,9 @@ It explains how the current engine fits together, where format facts live, and
 which invariants must survive a change. Read [FORMATS.md](FORMATS.md) alongside
 this guide: this file describes the engine; FORMATS describes the retail data.
 
+Independent contribution slices alongside the Vita port are mapped in
+[ENGINE_WORKSTREAMS.md](ENGINE_WORKSTREAMS.md).
+
 OpenUG2 is an early clean-room reimplementation. It is not yet a complete
 Underground 2 replacement, and a successful screenshot is not proof that a
 parser, map or race path is correct.
