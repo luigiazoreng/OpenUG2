@@ -1,8 +1,34 @@
 diff --git a/source/custom_shaders.c b/source/custom_shaders.c
-index e5b3d82..d9a8793 100644
+index e5b3d82..d52a8bf 100644
 --- a/source/custom_shaders.c
 +++ b/source/custom_shaders.c
-@@ -2105,19 +2105,27 @@ void glLinkProgram(GLuint progr) {
+@@ -393,6 +393,13 @@ static inline __attribute__((always_inline)) uniform *get_uniform_from_ptr(GLint
+ 
+ void release_shader(shader *s) {
+ 	// Deallocating shader and unregistering it from sceGxmShaderPatcher
++	/* The compiler log may exist even when compilation failed and prog is NULL. */
++#ifdef HAVE_SHARK_LOG
++	if (s->log) {
++		vgl_free(s->log);
++		s->log = NULL;
++	}
++#endif
+ 	if (s->prog) {
+ 		vglVertexProgramCacheInvalidate(s->id);
+ 		vgl_free((void *)s->prog);
+@@ -406,11 +413,6 @@ void release_shader(shader *s) {
+ 			vgl_free(s->unif_blk);
+ 			s->unif_blk = b;
+ 		}
+-#ifdef HAVE_SHARK_LOG
+-		if (s->log) {
+-			vgl_free(s->log);
+-		}
+-#endif
+ 	}
+ 	if (s->source) {
+ 		vgl_free(s->source);
+@@ -2105,19 +2107,27 @@ void glLinkProgram(GLuint progr) {
  
  	// Grabbing passed program
  	program *p = &progs[progr - 1];
@@ -32,7 +58,7 @@ index e5b3d82..d9a8793 100644
  
  	// With VGL_MODE_POSTPONED we perform shaders translation+compilation and attributes binding prior actual program linking
  	if (glsl_sema_mode == VGL_MODE_POSTPONED && (p->vshader->is_glsl || p->fshader->is_glsl)) {
-@@ -2173,6 +2181,15 @@ void glLinkProgram(GLuint progr) {
+@@ -2173,6 +2183,15 @@ void glLinkProgram(GLuint progr) {
  				vgl_compile_shader(p->fshader, GL_TRUE);
  			}
  		}

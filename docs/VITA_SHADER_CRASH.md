@@ -55,10 +55,14 @@ para verificar o caminho bem-sucedido, com os GLSL de produção preservados.
 
 Comandos, logs e hashes novos pertencem a
 `reports/vita-item5-2026-10-06/shader-fix/`, separados da sessão que crashou.
-Builds/testes usam o lock compartilhado, -j1, cap512 MiB e swap zero,
-preservando 4 GiB no host. As primeiras tentativas foram recusadas antes de
-executar por MemAvailable abaixo de reserva+cap; isso não é falha de código.
-Não baixar a reserva para contornar a recusa nem encerrar processos do usuário.
+As primeiras tentativas usaram o lock compartilhado, -j1, cap512 MiB,
+swap zero e reserva de 4 GiB. Foram recusadas antes de executar por
+MemAvailable abaixo de reserva+cap; isso não é falha de código.
+O usuário pediu execução limitada sem fechar aplicações. Esta rodada usa
+cap384 MiB, -j1, swap zero e reserva de 3 GiB, via cópia privada do guard
+em `shader-fix/guarded-validation.py`. O guard histórico fica intacto.
+Se o build superar o cap ou o host atingir a reserva, interromper apenas
+a validação. Não encerrar processos do usuário.
 
 Status dos testes, archive/VPK novos e sessão física devem ser anexados após
 execução. Esta documentação registra o diagnóstico e a alteração preparada;
