@@ -330,8 +330,10 @@ Initial bring-up validation (2026-10-05, engine `84ab8b3`):
 - All direct GL names except `glGetUniformfv` are declared and exported by
   the tested vitaGL archive. `git diff --check` passed.
 
-No physical device or install channel is available to this session.
-Consequently V0/V1/V2 on-device runtime, install/shutdown and the initial
+At the original bootstrap validation, no physical device or install channel
+was available. The user subsequently connected a Vita; Linux transport setup
+and device execution are tracked in [VITA_DEVICE_TESTING.md](VITA_DEVICE_TESTING.md).
+V0/V1/V2 on-device runtime, install/shutdown and the initial
 Vita real-content success criterion remain **unverified**. SDK/host headers and
 validation logs are temporary files outside Git; the SDK remains available
 for this workspace at `/tmp/openug2-vitasdk` until temporary files are removed.
@@ -348,6 +350,10 @@ README for commands and copying its contents to `ux0:data/openug2`.
 
 ## Device smoke test
 
+For Linux USB/FTP deployment, checksums and log collection, follow
+[VITA_DEVICE_TESTING.md](VITA_DEVICE_TESTING.md). The physical gates below
+remain pending until real console evidence is collected.
+
 1. Install `build/vita/openug2-vita.vpk` on the user's unlocked Vita, with the
    runtime compiler configured as described by vitaGL. Do not put it in Git.
 2. Supply the user's PC data at `ux0:data/openug2` with original filenames;
@@ -362,7 +368,8 @@ README for commands and copying its contents to `ux0:data/openug2`.
 5. Exercise stick/shoulders/Cross/Square/Triangle input, Start pause and
    Select+Start exit. Confirm process exit and relaunch repeatedly, including
    absent data. Report crashes and pool/frame measurements before integrating
-   the full car/world renderer. No device installation is automated here.
+   the full car/world renderer. Installation and launch through VitaShell /
+   LiveArea are manual; the Linux tool automates transfer and evidence collection.
 
 ## Ordered acceptance gates
 

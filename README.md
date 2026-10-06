@@ -192,6 +192,8 @@ with a textured indexed triangle, controller diagnostics and the production
 240SX parser probe against `ux0:data/openug2`. It is not yet a playable port.
 The VPK contains no original game data. See [the portability audit and device
 acceptance gates](docs/VITA_PORT.md) and [complete API inventory](docs/VITA_API_INVENTORY.md).
+For Linux USB/FTP transfer, checksum verification and on-device log collection,
+follow [the Vita device test workflow](docs/VITA_DEVICE_TESTING.md).
 
 ## Developer menu (ImGui)
 
