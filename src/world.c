@@ -564,7 +564,7 @@ static int world_bind_key(World *w, const WRegion *g, uint32_t tk, int pass,
     if (e && e->state == 2) return 0;           /* known unresolvable */
     if (e && e->pass == binding->source && e->key == tk) return 0; /* failed here */
     if (e) { e->key = tk; e->pass = binding->source; }
-    N2Tex tt = {0};   /* zero-init: n2_tpk_decode leaves dxt untouched */
+    N2Tex tt = {0};   /* Decoder defines all fields on success and failure. */
     int ok = world_texture_decode(w, g, tk, &tt, pass);
     if (ok && !n2_tex_noise(&tt)) {
         GLuint id = upload_tex(&tt);

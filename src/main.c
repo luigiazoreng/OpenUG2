@@ -2957,6 +2957,14 @@ int main(int argc, char **argv) {
         int nr = res_list_tracks(troot, regs, WORLD_MAXREG, "", &dummy);
         static World ew;
         static ERRegion er[WORLD_MAXREG];
+        for (int r = 0; r < nr; r++) {
+            const char *stem = strncmp(regs[r], "STREAM", 6) ? regs[r] : regs[r] + 6;
+            if (strlen(stem) >= sizeof er[r].stem) {
+                fprintf(stderr, "--event-refs: region stem '%s' exceeds %lu characters; refusing truncated lookup\n",
+                        stem, (unsigned long)sizeof er[r].stem - 1);
+                return 2;
+            }
+        }
         ew.neighborhood.nreg = nr;
         for (int r = 0; r < nr; r++)
             memcpy(ew.neighborhood.rgn[r].name, regs[r],
@@ -2983,8 +2991,7 @@ int main(int argc, char **argv) {
         for (int r = 0; r < nr; r++) {
             const char *rn = regs[r];
             const char *stem = strncmp(rn, "STREAM", 6) ? rn : rn + 6;
-            snprintf(er[r].stem, sizeof er[r].stem, "%.*s",
-                     (int)sizeof er[r].stem - 1, stem);
+            memcpy(er[r].stem, stem, strlen(stem) + 1); /* Validated before discovery. */
             er_find_paths(troot, stem, 0, er[r].cat,  sizeof er[r].cat);
             er_find_paths(troot, stem, 1, er[r].cat2, sizeof er[r].cat2);
             er[r].nrec = er[r].nrec2 = 0; er[r].idmatch = -1; er[r].off = -1;

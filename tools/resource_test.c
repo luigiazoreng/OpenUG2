@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +28,7 @@ static void path_name(char *out, size_t length) {
     out[length] = 0;
 }
 
-int main(void) {
+static void test_boundary(void) {
     char root[] = "/tmp/openug2-resource-test-XXXXXX";
     assert(mkdtemp(root));
     char directory[512], path[1024];
@@ -59,7 +60,15 @@ int main(void) {
         assert(unlink(path) == 0);
     }
     assert(rmdir(directory) == 0);
+    assert(rmdir(root) == 0);
+    puts("resource_test: PASS (boundary names, termination, oversized paths)");
+}
 
+static void test_prefix(void) {
+    char root[] = "/tmp/openug2-resource-prefix-test-XXXXXX";
+    assert(mkdtemp(root));
+    char directory[512], path[1024];
+    char list[4][256]; memset(list, 0xa5, sizeof list);
     /* A request must not open the existing directory at its truncated prefix. */
     char stem[251], truncated[256];
     memset(stem, 'L', 250); stem[250] = 0;
@@ -73,6 +82,17 @@ int main(void) {
     assert(unlink(path) == 0);
     assert(rmdir(directory) == 0);
     assert(rmdir(root) == 0);
-    puts("resource_test: PASS (boundary names, termination, oversized paths)");
+    puts("resource_test: PASS (oversized circuit prefix is rejected)");
+}
+
+int main(int argc, char **argv) {
+    int run_boundary = argc == 1 || (argc == 2 && !strcmp(argv[1], "boundary"));
+    int run_prefix = argc == 1 || (argc == 2 && !strcmp(argv[1], "prefix"));
+    if (!run_boundary && !run_prefix) {
+        fprintf(stderr, "usage: %s [boundary|prefix]\n", argv[0]);
+        return 2;
+    }
+    if (run_boundary) test_boundary();
+    if (run_prefix) test_prefix();
     return 0;
 }
