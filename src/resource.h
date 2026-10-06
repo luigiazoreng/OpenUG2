@@ -4,11 +4,41 @@
 #ifndef OPENUG2_RESOURCE_H
 #define OPENUG2_RESOURCE_H
 
-#include "nfsu2.h"
+#include <stddef.h>
+#include <stdint.h>
 
-/* mmap a file read-only. Lazy paging: pages fault in only when touched, so a
- * 100MB shared "master" region costs just the bytes actually read (TPK header
- * + the few textures we decode), not a full load. NULL on failure. */
+/* Explicitly budgeted, buffered file owner. Limits count payload bytes per
+ * file and payload plus private owner metadata against total/live accounting.
+ * The budget must outlive its open files. Zero it, initialize before sharing,
+ * and do not modify its public counters directly. */
+typedef struct {
+    uint32_t limit, per_file, used, peak, live;
+    uint32_t initialized;
+    volatile uint32_t lock;
+} ResBudget;
+
+typedef struct {
+    uint32_t limit, per_file, used, peak, live;
+} ResBudgetStats;
+
+typedef struct {
+    unsigned char *data;
+    long len;
+} ResFile;
+
+int res_budget_init(ResBudget *budget, uint32_t limit_bytes,
+                    uint32_t per_file_bytes);
+void res_budget_snapshot(ResBudget *budget, ResBudgetStats *out);
+int res_file_open(const char *path, ResBudget *budget, ResFile *out,
+                  char *error, size_t errorcap);
+void res_file_close(ResFile *file);
+
+/* The compatibility API uses mmap on desktop. Define
+ * OPENUG2_RESOURCE_BUFFERED to use a bounded heap buffer (no sys/mman header),
+ * with a default 64 MiB total / 32 MiB per-file budget. Configuration must
+ * happen before the first mapping; it fails while buffered mappings are live.
+ * `len` is set to zero on every failed open. */
+int res_map_budget_configure(uint32_t limit_bytes, uint32_t per_file_bytes);
 unsigned char *res_map_file(const char *path, long *len);
 void res_unmap_file(unsigned char *data, long len);
 
