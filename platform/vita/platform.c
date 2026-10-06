@@ -92,6 +92,10 @@ int vita_platform_open(VitaPlatform *p) {
     p->context = SDL_GL_CreateContext(p->window);
     if (!p->context) { vita_log("context: %s\n", SDL_GetError()); goto fail; }
 #if OPENUG2_VITA_GPU_PROBES
+    /* Keep the complete shader. The pinned driver defaults to O3 with fast
+       math/int; use O1 without relaxed arithmetic while validating the port. */
+    vglSetupRuntimeShaderCompiler(SHARK_OPT_SAFE, GL_FALSE, GL_FALSE, GL_FALSE);
+    vita_log("GPU COMPILER optimization=O1 fastmath=0 fastprecision=0 fastint=0\n");
     /* Pinned vitaGL SAFE_UNIFORMS encodes (program-1, uniform, array offset).
        Fragment uniform zero in program 1 encodes zero, which its setters
        ignore. Keep that program slot reserved for the context lifetime. */

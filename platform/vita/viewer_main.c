@@ -3,6 +3,7 @@
 #include "gpu_probe.h"
 #include "car_viewer.h"
 #include "render.h"
+#include "startup_guard.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -30,7 +31,31 @@ static int session_id(char id[25]) {
     memcpy(id, value, 24); id[24] = 0; return 1;
 }
 
+static char diagnostic_run_id[25];
+static unsigned dumped_shaders;
+
 static float clamp(float x, float lo, float hi) { return fmaxf(lo, fminf(hi, x)); }
+
+/* Optional hook from the pinned private dependency. The payload is borrowed
+   only for this call; source dumps are bounded and never used as shaders. */
+void openug2_vitagl_trace(const char *phase, unsigned type, const char *source, unsigned bytes) {
+    vita_log("GPU BACKEND phase=%s shader=%u bytes=%u\n", phase, type, bytes);
+    if (!strcmp(phase, "translate_begin")) vita_startup_guard_stage(VITA_STARTUP_TRANSLATE);
+    else if (!strcmp(phase, "compile_begin"))
+        vita_startup_guard_stage(type == GL_VERTEX_SHADER ? VITA_STARTUP_VERTEX : VITA_STARTUP_FRAGMENT);
+    else if (!strcmp(phase, "register_begin")) vita_startup_guard_stage(VITA_STARTUP_REGISTER);
+    else if (!strcmp(phase, "link_begin")) vita_startup_guard_stage(VITA_STARTUP_LINK);
+    unsigned bit = type == GL_VERTEX_SHADER ? 1u : 2u;
+    if (source && bytes && bytes <= 65536 && !(dumped_shaders & bit)) {
+        const char *path = type == GL_VERTEX_SHADER ? VITA_DATA_ROOT "/shader-vertex.cg" : VITA_DATA_ROOT "/shader-fragment.cg";
+        FILE *file = fopen(path, "wb");
+        int ok = file && fprintf(file, "// CAR SESSION run_id=%s\n", diagnostic_run_id) > 0 &&
+            fwrite(source, 1, bytes, file) == bytes;
+        if (ok) dumped_shaders |= bit;
+        if (file) fclose(file);
+        vita_log("GPU BACKEND source_dump=%s bytes=%u written=%d\n", path, bytes, ok);
+    }
+}
 
 int main(int argc, char **argv) {
     unsigned long frame_limit = 0;
@@ -53,12 +78,18 @@ int main(int argc, char **argv) {
             }
         } else { vita_log("CAR ERROR usage: --frames N\n"); vita_log_close(); return 2; }
     }
+    memcpy(diagnostic_run_id, run_id, sizeof diagnostic_run_id);
+    if (!vita_startup_guard_start(run_id)) {
+        vita_log("CAR ERROR startup monitor unavailable\n"); vita_log_close(); return 1;
+    }
     VitaPlatform platform;
-    if (!vita_platform_open(&platform)) { vita_log_close(); return 1; }
+    if (!vita_platform_open(&platform)) { vita_startup_guard_stop(); vita_log_close(); return 1; }
     vita_renderer_log_pools();
+    vita_startup_guard_stage(VITA_STARTUP_GPU);
     int status = !vita_gpu_probe_run();
     vita_renderer_log_pools();
     if (status) {
+        vita_startup_guard_stop();
         vita_log("CAR ERROR GPU suite failed; car loading was not started\n");
         vita_platform_close(&platform);
         vita_log("CAR SHUTDOWN frames=0 status=1\n");
@@ -66,7 +97,9 @@ int main(int argc, char **argv) {
     }
     char error[1200] = {0};
     Uint64 load_start = SDL_GetPerformanceCounter();
+    vita_startup_guard_stage(VITA_STARTUP_CAR);
     CarViewer *viewer = car_viewer_create(VITA_DATA_ROOT, error, sizeof error);
+    vita_startup_guard_stop();
     if (!viewer) {
         vita_log("CAR ERROR %s\n", error); vita_platform_close(&platform); vita_log_close(); return 1;
     }

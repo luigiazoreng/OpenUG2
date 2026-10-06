@@ -1,5 +1,10 @@
 # Handoff — engine e integração Vita até o item 5
 
+O terceiro teste físico ficou bloqueado no link do shader, antes do input.
+A nova branch de startup, a pesquisa em fontes oficiais e o monitor de saída
+estão em [VITA_STARTUP_HANG.md](VITA_STARTUP_HANG.md). O reteste ainda é
+necessário; os registros de preparação abaixo são históricos.
+
 Atualização após a segunda sessão física: o guard do link evitou o data abort
 e recuperou o erro do shader; o viewer encerrou com erro controlado, sem frames.
 Falharam shader, DXT3/DXT5 nativos e mipmaps. A correção em branch separada e

@@ -48,7 +48,7 @@ if(NOT TITLEID_LENGTH EQUAL 9 OR NOT OPENUG2_VITA_TITLEID MATCHES "^[A-Z0-9]+$")
 endif()
 
 if(OPENUG2_VITA_CAR_VIEWER)
-  add_executable(openug2_vita viewer_main.c platform.c renderer_vita.c car_scene.c car_viewer.c ../../src/resource.c)
+  add_executable(openug2_vita viewer_main.c startup_guard.c platform.c renderer_vita.c car_scene.c car_viewer.c ../../src/resource.c)
   target_compile_definitions(openug2_vita PRIVATE OPENUG2_RESOURCE_BUFFERED)
 else()
   add_executable(openug2_vita main.c platform.c renderer_vita.c asset_probe.c asset_job.c)
