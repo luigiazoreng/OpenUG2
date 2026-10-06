@@ -56,6 +56,10 @@ endif()
 set_target_properties(openug2_vita PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES
   LINKER_LANGUAGE CXX) # vitaGL's GLSL translator is C++; engine sources stay C.
 target_compile_options(openug2_vita PRIVATE -Wall -Wextra -Werror -Wno-unused-function)
+# The armvita linker reserves this gap before the writable segment. SCE
+# imports are appended to the executable segment by vita-elf-create; a plain
+# alignment boundary can leave less space than the import metadata needs.
+target_link_options(openug2_vita PRIVATE "-Wl,--defsym=__sce_headroom=0x2000")
 target_compile_definitions(openug2_vita PRIVATE OPENUG2_VITA
   OPENUG2_VITA_PROFILE=$<BOOL:${OPENUG2_VITA_PROFILE}>
   OPENUG2_VITA_GPU_PROBES=$<BOOL:${OPENUG2_VITA_GPU_PROBES}>)

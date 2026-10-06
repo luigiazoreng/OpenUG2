@@ -15,7 +15,7 @@
 
 typedef struct {
     GLuint program, vbo, ibo, fbo, color, depth, texture;
-    GLint use_tex, color_uniform, z;
+    GLint use_tex, color_uniform, z, uv_scale;
     int passed, failed, unsupported;
 } Probe;
 
@@ -35,8 +35,8 @@ static GLuint probe_shader(GLenum kind, const char *source) {
 static int probe_init(Probe *p) {
     glActiveTexture(GL_TEXTURE0);
     const char *vs = PROBE_GLSL
-        "attribute vec2 aPos; attribute vec2 aUV; varying vec2 vUV; uniform float uZ;"
-        "void main(){ vUV=aUV; gl_Position=vec4(aPos,uZ,1.0); }";
+        "attribute vec2 aPos; attribute vec2 aUV; varying vec2 vUV; uniform float uZ,uUVScale;"
+        "void main(){ vUV=aUV*uUVScale; gl_Position=vec4(aPos,uZ,1.0); }";
     const char *fs = PROBE_GLSL
         "varying vec2 vUV; uniform sampler2D uTex; uniform float uUseTex; uniform vec3 uColor;"
         "void main(){ gl_FragColor=mix(vec4(uColor,1.0),texture2D(uTex,vUV),uUseTex); }";
@@ -59,6 +59,7 @@ static int probe_init(Probe *p) {
     p->use_tex = glGetUniformLocation(p->program, "uUseTex");
     p->color_uniform = glGetUniformLocation(p->program, "uColor");
     p->z = glGetUniformLocation(p->program, "uZ");
+    p->uv_scale = glGetUniformLocation(p->program, "uUVScale");
     glUniform1i(glGetUniformLocation(p->program, "uTex"), 0);
     const GLfloat vertices[] = {-1,-1,0,0, 1,-1,1,0, 1,1,1,1, -1,1,0,1};
     const GLushort indices[] = {0,1,2, 0,2,3};
@@ -94,9 +95,14 @@ static int probe_init(Probe *p) {
     return glGetError() == GL_NO_ERROR;
 }
 
-static void probe_draw(Probe *p, int textured, float r, float g, float b, float z) {
+static void probe_draw_scaled(Probe *p, int textured, float r, float g, float b, float z, float scale) {
+    glUniform1f(p->uv_scale, scale);
     glUniform1f(p->use_tex, (float)textured); glUniform3f(p->color_uniform, r, g, b);
     glUniform1f(p->z, z); glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+}
+
+static void probe_draw(Probe *p, int textured, float r, float g, float b, float z) {
+    probe_draw_scaled(p, textured, r, g, b, z, 1);
 }
 
 static void probe_check(Probe *p, const char *name, int x, int y, int r, int g, int b) {
@@ -136,6 +142,38 @@ static void probe_upload_bytes(const unsigned char *block, int bytes, int format
     vita_log("\n");
 #else
     (void)block; (void)bytes; (void)format;
+#endif
+}
+
+static void probe_mip_storage(const char *kind, const unsigned char colors[5][4]) {
+#ifdef OPENUG2_VITA
+    /* Diagnostics only, after pixel checks. Finish transfer work before CPU
+       inspection; this fence cannot turn an earlier failed probe into PASS. */
+    glFinish();
+    int transfer = sceGxmTransferFinish();
+    const SceGxmTexture *tex = vglGetGxmTexture(GL_TEXTURE_2D);
+    unsigned char *data = vglGetTexDataPointer(GL_TEXTURE_2D);
+    unsigned count = tex ? sceGxmTextureGetMipmapCount(tex) : 0;
+    unsigned width = tex ? sceGxmTextureGetWidth(tex) : 0;
+    unsigned height = tex ? sceGxmTextureGetHeight(tex) : 0;
+    unsigned format = tex ? (unsigned)sceGxmTextureGetFormat(tex) : 0;
+    vita_log("GPU MIP STORAGE kind=%s levels=%u width=%u height=%u format=0x%x transfer_finish=%d\n",
+        kind, count, width, height, format, transfer);
+    if (!data || width != 16 || height != 16 || count != 5 ||
+        format != (unsigned)SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR) {
+        vita_log("GPU MIP STORAGE kind=%s inspection=SKIPPED descriptor_mismatch\n", kind); return;
+    }
+    unsigned offset = 0;
+    for (unsigned level = 0, side = 16; level < 5; level++, side >>= 1) {
+        unsigned stride = ((side + 7) & ~7u) * 4, matches = 0;
+        for (unsigned y = 0; y < side; y++) for (unsigned x = 0; x < side; x++)
+            matches += memcmp(data + offset + y * stride + x * 4, colors[level], 4) == 0;
+        vita_log("GPU MIP BYTES kind=%s level=%u offset=%u matching_pixels=%u/%u first=%u,%u,%u,%u\n",
+            kind, level, offset, matches, side * side, data[offset], data[offset+1], data[offset+2], data[offset+3]);
+        offset += stride * side;
+    }
+#else
+    (void)kind; (void)colors;
 #endif
 }
 
@@ -307,10 +345,34 @@ int vita_gpu_probe_run(void) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
         glViewport(0, 0, 1, 1); probe_clear(); probe_draw(&p, 1, 1, 1, 1, 0);
         probe_check(&p, "mip_sampling", 0, 0, 0, 255, 255);
+        /* Same LOD4 derivative with an 8x8 raster: 16 texels * UV8 / 8 pixels.
+           Preserve the original 1x1 checks; their failures remain fatal. */
+        glViewport(0, 0, 8, 8); probe_clear(); probe_draw_scaled(&p, 1, 1, 1, 1, 0, 8);
+        probe_check(&p, "mip_sampling_uv8", 4, 4, 0, 255, 255);
+        glViewport(0, 0, 1, 1);
         for (int i = 0; i < 16*16; i++) memcpy(pixels+i*4, colors[0], 4);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
         glGenerateMipmap(GL_TEXTURE_2D); probe_clear(); probe_draw(&p, 1, 1, 1, 1, 0);
         probe_check(&p, "mip_generation", 0, 0, 255, 0, 0);
+        glViewport(0, 0, 8, 8); probe_clear(); probe_draw_scaled(&p, 1, 1, 1, 1, 0, 8);
+        probe_check(&p, "mip_generation_uv8", 4, 4, 255, 0, 0);
+        unsigned char red[5][4];
+        for (int i = 0; i < 5; i++) memcpy(red[i], colors[0], 4);
+        probe_mip_storage("generated", red);
+        /* Inspect an authored chain independently of generated content. */
+        for (int level = 0, side = 16; level < 5; level++, side /= 2) {
+            for (int i = 0; i < side*side; i++) memcpy(pixels+i*4, colors[level], 4);
+            glTexImage2D(GL_TEXTURE_2D, level, GL_RGBA, side, side, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        }
+        probe_mip_storage("authored", colors);
+        /* Complete base-level texture removes mip sampling from viewport tests. */
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        unsigned char white[16]; memset(white, 255, sizeof white);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
+        glViewport(0, 0, 1, 1); probe_clear(); probe_draw(&p, 0, 1, 0, 0, 0);
+        probe_check(&p, "viewport_1x1_solid", 0, 0, 255, 0, 0);
+        glViewport(0, 0, 8, 8); probe_clear(); probe_draw(&p, 0, 0, 1, 0, 0);
+        probe_check(&p, "viewport_8x8_solid", 4, 4, 0, 255, 0);
     } else p.failed++;
     probe_destroy(&p);
     double ms = (SDL_GetPerformanceCounter()-begin)*1000.0/SDL_GetPerformanceFrequency();
