@@ -2,11 +2,12 @@
 
 Branch: `integration-development`.
 
-**Status: candidate integrated and checked, not homologated.** The inherited
-traffic-contact regression was reproduced and resolved in the focused change
-described below. Compiler warnings still prevent warning-free acceptance.
-Resolve that remaining gate before promotion into `vita-bringup` or starting
-the next queue item.
+**Status: host baseline validation complete.** The inherited traffic-contact
+failure and compiler warnings are resolved in separate changes. Full normal,
+debug and GLES builds, 17 synthetic targets and three CLI targets pass with
+zero warnings. L4RA/L4RB measurements and captures match the preserved upstream
+reference. Physical Vita execution and issue #7's second machine remain
+separate acceptance checks; this result does not certify either.
 
 ## Provenance and isolation
 
@@ -16,6 +17,8 @@ the next queue item.
 - Upstream `main` already incorporates that development commit through
   `59c9263dd0299a6f41827caca6536005e4a32cf2`; their trees were identical at fetch.
 - Candidate merge: `9eea351`, parents `8315923` and `6c9dd09`.
+- Traffic fix: `2a84368`, integrated as `37aa070`.
+- Warning/bounds fix: `762631c`, integrated as `622a199`.
 - Issue #7 remains on `issue-7-stream-coverage` at `7e95be5` with its previous
   engine, executable, fixed-pose measurements and local captures.
 
@@ -24,8 +27,12 @@ pinned upstream source, the candidate changed only `src/debugui.cpp` by defining
 `GL_GLEXT_PROTOTYPES` before the SDL OpenGL header on Linux. The existing
 Makefile compatibility fixes and isolated Vita target remain. Production
 parser, world, physics, AI and renderer implementations matched upstream.
-The subsequent wall-contact precision fix changes `src/physics.c` in isolation;
-the parser, world, AI and renderer still match that pinned upstream source.
+The subsequent wall-contact precision fix changes `src/physics.c` in isolation.
+The warning cleanup adds bounded path/offset checks and diagnostic fixes, with
+whitespace-only changes in AI, audio and the already fixed physics. Its renderer
+changes split existing statements and mark unused GLES fallback arguments;
+the GL rendering path is preserved. Both fixes originate in branches based
+on the pinned engine without mixing the Vita bootstrap into those changes.
 
 Public issue updates are deferred until the relevant slice is complete,
 validated and homologated. This integration publishes no comment or PR.
@@ -191,7 +198,7 @@ through that comparison. Small-test scope accounting reached the 512 MiB cap
 without terminating a test; this is kernel-accounted memory, not process RSS.
 Sampled peaks are observations, not guarantees about exact maximum allocation.
 
-## Focused wall-contact fix and remaining gate
+## Focused wall-contact fix (before the warning cleanup)
 
 The separate `fix-traffic-contact-regression` branch is based directly on
 `6c9dd09`. Its commit `2a84368` was cherry-picked into this candidate as
@@ -236,7 +243,67 @@ least 6472.6 MiB host available memory. The real-data scope sampled 1124.1 MiB
 and at least 7055.0 MiB host available memory, with the additional 1024 MiB
 process-group RSS guard. Exact observations are in the external reports.
 
-The remaining acceptance task is to resolve inherited compiler warnings in a
-separate branch, then validate warning-free builds and preserved behavior.
-Issue #14 and later queue items remain unstarted. No issue update or PR is
-published from this validation run.
+At that stage, compiler warnings remained the acceptance task. That historical
+evidence is preserved; the following validation resolves the warning gate.
+
+## Warning cleanup and final host validation
+
+The `fix-compiler-warnings` branch contains commit `762631c`, based on
+`2a84368`. It was cherry-picked into this integration as `622a199` without
+conflicts. [COMPILER_WARNINGS.md](COMPILER_WARNINGS.md) records the changes and
+reproduction commands.
+
+The final code was checked with `-Wall -Wextra -Werror` and the existing
+unused-static-parser-function exception. No new warning category was disabled.
+Debug rebuilt all C and C++ objects, including ImGui and its backends.
+
+| Final check | Result |
+|---|---|
+| Full normal / debug / GLES builds | PASS / PASS / PASS; zero warnings |
+| Synthetic regression targets | 17/17 PASS; zero warnings |
+| Car-material/parser assertions | 359 passed, zero failed |
+| World / resolution / AI CLI targets | 3/3 PASS |
+| Resource boundary fixture, ASan/UBSan with leak detection | PASS; fails its terminator assertion with original resource code |
+| Full car-material/parser suite, ASan/UBSan with leak detection | PASS |
+| Physics / world-instance Vita ARM translation units | PASS / PASS with warnings treated as errors |
+| Isolated Vita bootstrap VPK | PASS; zero warnings, package CRC/contents checked |
+| L4RA/L4RB comparison to preserved upstream reference | PASS; counts equal, captures byte-identical |
+
+The circuit-name fix includes the terminator for a name exactly 255 bytes long
+and rejects longer paths. The ARM compiler also exposed signed/unsigned offset
+arithmetic: texture bounds now use remaining file bytes, and mesh auditing
+rejects oversized chunks before payload access. New fixtures cover these cases
+and the signed-long chunk boundary. Leak detection found fixture-owned texture
+block tables; all 17 tables used by those tests are now freed after decoding.
+
+The source API inventory was refreshed for local integration revision
+`622a1996cbb982fe81fb3afe90572dccb716c242`. It has 82 direct GL, five indirect GL,
+34 SDL and 82 libc/POSIX/math/zlib names in production. `strncpy` was removed
+from that last set. The only missing direct vitaGL dependency remains
+`glGetUniformfv`. This is still an API inventory, not the #14 ownership/API
+design deliverable.
+
+Final evidence is isolated from both previous validation runs:
+
+```text
+/home/luigi/Documents/luigi/nfsu2-data/reports/compiler-warnings-2026-10-05/
+/home/luigi/Documents/luigi/nfsu2-data/reports/compiler-warnings-integration-2026-10-05/
+```
+
+Normal/GLES/tests used 512 MiB scope caps, full debug 768 MiB, with swap disabled
+and a 4096 MiB host reserve. Across the 21 final build/test phases, sampled
+scope memory peaked at 462.9 MiB and host available memory stayed above
+8184.0 MiB. The six real-data commands used the established 2048 MiB total
+scope and 1024 MiB process-group RSS caps: the scope sampled 1123.4 MiB and
+host available memory stayed above 7975.0 MiB. Input fingerprints and both
+PNG hashes still match the values above; the normal executable was restored.
+The isolated VPK was also rebuilt under a 512 MiB cap without warnings; its
+only entries are `eboot.bin` and `sce_sys/param.sfo`. All 121 historical coverage
+files, the issue #7 branch/executable and the original Vita branch were verified
+unchanged again. The refreshed API inventory reproduces exactly from its
+recorded revision.
+
+This completes host validation of the pinned development integration plus
+the two focused fixes. The original Vita and issue #7 branches retain their
+previous commits and evidence. Issue #14 is the next queue item and remains
+unstarted. No public comment or PR accompanies this validation.

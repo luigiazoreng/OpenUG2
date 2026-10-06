@@ -15,9 +15,11 @@ The `integration-development` branch combines the existing bring-up with
 `6c9dd091ee3297dea898c78764edf209657ce3d5`, also integrated into `main` by
 `59c9263dd0299a6f41827caca6536005e4a32cf2`. The original `vita-bringup` branch
 and the issue #7 checkout retain their earlier baseline.
-This candidate has not been homologated: the inherited traffic-contact failure
-is resolved, while compiler warnings remain a separate acceptance task. Evidence
-is documented in [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md).
+Host validation is complete after separate traffic-contact and warning fixes:
+all three build variants and the selected regressions pass without warnings,
+with matching L4RA/L4RB counts and captures. Evidence is documented in
+[DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md). Physical Vita execution
+and issue #7's second machine remain separate acceptance checks.
 Update that baseline deliberately, after reviewing the upstream changes and
 passing the relevant builds and regressions. Record the new SHA and refresh
 the portability inventory when the baseline changes.
@@ -44,8 +46,8 @@ stated explicitly. No new issue announcement accompanies this integration.
 The agreed queue is:
 
 1. Integrate and validate the pinned `development` baseline, preserving #7
-   evidence. The inherited traffic-contact failure is fixed on its own branch;
-   resolve compiler warnings before promotion. See
+   evidence. **Host validation complete:** the inherited traffic-contact failure
+   and warnings are fixed on separate branches. See
    [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md).
 2. Issue #14: current GL call/ownership inventory and a small proposed C API.
 3. Separate Vita slices: owned uniform state, then a budgeted resource backend.
