@@ -1,10 +1,12 @@
 # Handoff — engine e integração Vita até o item 5
 
-Atualização após a primeira sessão física: houve data abort ao consultar o
-fragment shader nulo durante link em vitaGL. A causa imediata, a correção em
-branch separada, os testes host e o novo pacote já transferido estão em
-[VITA_SHADER_CRASH.md](VITA_SHADER_CRASH.md). O reteste físico desse pacote
-continua pendente. Os resultados abaixo descrevem a preparação original.
+Atualização após a segunda sessão física: o guard do link evitou o data abort
+e recuperou o erro do shader; o viewer encerrou com erro controlado, sem frames.
+Falharam shader, DXT3/DXT5 nativos e mipmaps. A correção em branch separada e
+seus critérios de homologação estão em [VITA_GL_COMPAT.md](VITA_GL_COMPAT.md).
+O crash original permanece documentado em
+[VITA_SHADER_CRASH.md](VITA_SHADER_CRASH.md). Os resultados abaixo descrevem
+a preparação original e não aprovam automaticamente o novo pacote.
 
 Estado em 2026-10-06: implementação e validação no host concluídas; pacote do
 240SX estático preparado para homologação física. O carro dirigível em

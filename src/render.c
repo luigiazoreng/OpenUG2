@@ -800,8 +800,8 @@ static const char *FS =
        Luminance drives the shade, uColor picks the metal, so a gold OEM sheet
        becomes any painted colour (silver by default) with spokes/shadows
        intact. uRimTint 0 = raw OEM texture, 1 = fully painted. */
-    "  if(uRimTint>0.001){ float y=dot(t.rgb, vec3(0.299,0.587,0.114));\n"
-    "    base = mix(base, uColor*(0.25+1.5*y), uRimTint); }\n"
+    "  if(uRimTint>0.001){ float luma=dot(t.rgb, vec3(0.299,0.587,0.114));\n"
+    "    base = mix(base, uColor*(0.25+1.5*luma), uRimTint); }\n"
     /* cheap view-angle cavity darkening (cars only, uSpec>0 — the world
        batches always set uSpec=0): panel gaps/creases have no texture data
        to show them (verified: body meshes carry no diffuse map at all), so
