@@ -323,6 +323,7 @@ void render_texture_detail(float aniso);
 extern int g_tex_s3tc;   /* 1 = GL_EXT_texture_compression_s3tc present; set once at GL init */
 
 /* ---- 3x5 bitmap font (uppercase, digits, _ - /) ---- */
+const unsigned char *render_font_glyph(char c); /* borrowed immutable five rows */
 void  draw_text(GpuMesh *quad, GLint uMVP, const char *s,
                 float x, float y, float px, float py);
 float text_width(const char *s, float px);

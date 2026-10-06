@@ -3546,6 +3546,10 @@ int main(int argc, char **argv) {
 #endif
 
     RProg rp = render_program();
+    if (!rp.prog) {
+        fprintf(stderr, "OpenUG2 renderer initialization failed; check shader compiler diagnostics above.\n");
+        SDL_GL_DeleteContext(ctx); SDL_DestroyWindow(win); SDL_Quit(); return 1;
+    }
     HeadlightShadows headlight_shadows = {0};
     GLuint rain_vbo = 0;
     RoadReflections road_reflections = {0};

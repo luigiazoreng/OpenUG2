@@ -313,6 +313,8 @@ gles: $(SRC) $(HDRS) $(GEN)
 CMAKE ?= cmake
 VITA_BUILD_DIR ?= build/vita
 VITA_PROFILE ?= ON
+VITA_GPU_PROBES ?= OFF
+VITA_GL_LIBRARY ?=
 VITA_TITLEID ?= OPENUG200
 vita:
 	@test -n "$(VITASDK)" && test -f "$(VITASDK)/share/vita.toolchain.cmake" || \
@@ -320,7 +322,8 @@ vita:
 	$(CMAKE) -S platform/vita -B "$(VITA_BUILD_DIR)" \
 	  -DCMAKE_TOOLCHAIN_FILE="$(VITASDK)/share/vita.toolchain.cmake" \
 	  -DCMAKE_BUILD_TYPE=Release -DOPENUG2_VITA_PROFILE=$(VITA_PROFILE) \
-	  -DOPENUG2_VITA_TITLEID=$(VITA_TITLEID)
+	  -DOPENUG2_VITA_TITLEID=$(VITA_TITLEID) -DOPENUG2_VITA_GPU_PROBES=$(VITA_GPU_PROBES) \
+	  -DOPENUG2_VITAGL_LIBRARY="$(VITA_GL_LIBRARY)"
 	$(CMAKE) --build "$(VITA_BUILD_DIR)"
 
 .PHONY: vita

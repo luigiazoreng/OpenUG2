@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#if OPENUG2_VITA_GPU_PROBES
+#include <vitaGL.h>
+#endif
 #ifdef OPENUG2_VITA
 #include <psp2/ctrl.h>
 #endif
@@ -81,6 +84,14 @@ int vita_platform_open(VitaPlatform *p) {
     if (!p->window) { vita_log("window: %s\n", SDL_GetError()); goto fail; }
     p->context = SDL_GL_CreateContext(p->window);
     if (!p->context) { vita_log("context: %s\n", SDL_GetError()); goto fail; }
+#if OPENUG2_VITA_GPU_PROBES
+    /* Pinned vitaGL SAFE_UNIFORMS encodes (program-1, uniform, array offset).
+       Fragment uniform zero in program 1 encodes zero, which its setters
+       ignore. Keep that program slot reserved for the context lifetime. */
+    p->uniform_program_guard = glCreateProgram();
+    if (!p->uniform_program_guard) { vita_log("uniform program guard allocation failed\n"); goto fail; }
+    vita_log("GPU DEPENDENCY first_program_reserved=%u safe_uniforms_required=1\n", p->uniform_program_guard);
+#endif
     if (SDL_GL_SetSwapInterval(1) < 0) vita_log("vsync: %s\n", SDL_GetError());
     int w = 0, h = 0;
     SDL_GL_GetDrawableSize(p->window, &w, &h);
@@ -167,6 +178,9 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
 
 void vita_platform_close(VitaPlatform *p) {
     if (p->controller) SDL_GameControllerClose(p->controller);
+#if OPENUG2_VITA_GPU_PROBES
+    if (p->context && p->uniform_program_guard) glDeleteProgram(p->uniform_program_guard);
+#endif
     if (p->context) SDL_GL_DeleteContext(p->context);
     if (p->window) SDL_DestroyWindow(p->window);
     if (p->sdl_ready) SDL_Quit();

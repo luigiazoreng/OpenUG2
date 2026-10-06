@@ -2,6 +2,7 @@
 #include "renderer_vita.h"
 #include "asset_probe.h"
 #include "asset_job.h"
+#include "gpu_probe.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -55,6 +56,15 @@ int main(int argc, char **argv) {
     }
     VitaPlatform platform;
     if (!vita_platform_open(&platform)) { vita_log_close(); return 1; }
+#if OPENUG2_VITA_GPU_PROBES
+    vita_renderer_log_pools();
+    int gpu_ok = vita_gpu_probe_run();
+    vita_renderer_log_pools();
+    if (!gpu_ok) {
+        vita_log("GPU probes failed; collect diagnostics before accepting this renderer\n");
+        vita_platform_close(&platform); vita_log_close(); return 1;
+    }
+#endif
     VitaRenderer *renderer = vita_renderer_create();
     if (!renderer) { vita_platform_close(&platform); vita_log_close(); return 1; }
     int asset_ok = probe_asset(), paused = 0, status = 0;
