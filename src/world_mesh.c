@@ -36,12 +36,12 @@ WorldMeshBatch upload_world_mesh_to_gpu(const BatchedVertex *verts, uint32_t vco
 void render_world_map(const WorldMeshBatch *batches, uint32_t n,
                       GLuint program, const float *mvp16, int debug_mode) {
     if (!batches || !program) return;
-    glUseProgram(program);
+    render_use_program(program);
 
-    GLint locMVP  = glGetUniformLocation(program, "u_MVP");
-    GLint locMode = glGetUniformLocation(program, "u_DebugMode");
-    if (locMVP  >= 0 && mvp16) glUniformMatrix4fv(locMVP, 1, GL_FALSE, mvp16);
-    if (locMode >= 0)         glUniform1i(locMode, debug_mode);
+    GLint locMVP  = render_uniform_location(program, "u_MVP");
+    GLint locMode = render_uniform_location(program, "u_DebugMode");
+    if (locMVP  >= 0 && mvp16) render_uniform_matrix4fv(locMVP, 1, GL_FALSE, mvp16);
+    if (locMode >= 0)         render_uniform1i(locMode, debug_mode);
 
     /* Attribute locations (bound to 0..3 by world_debug_program_load; queried so
        an externally-built program still works). Fetched once, not per batch. */
@@ -151,7 +151,7 @@ GLuint world_debug_program_load(const char *vert_path, const char *frag_path) {
     if (!ok) {
         char log[1024]; glGetProgramInfoLog(p, (GLsizei)sizeof log, NULL, log);
         fprintf(stderr, "world_debug link: %s\n", log);
-        glDeleteProgram(p); p = 0;
+        render_delete_program(p); p = 0;
     }
     glDeleteShader(v); glDeleteShader(f);
     return p;

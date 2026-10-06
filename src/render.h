@@ -5,12 +5,15 @@
  * also issues many direct pipeline and draw calls.
  *
  * Also the single home of the GL headers: desktop legacy GL 2.1 + GLSL 120, or
- * OpenGL ES 2.0 + GLSL 100 with -DN2_GLES — every module includes GL via here. */
+ * OpenGL ES 2.0 + GLSL 100 with -DN2_GLES. A build may override the include
+ * with -DOPENUG2_GL_HEADER=\"vitaGL.h\"; that selection takes precedence. */
 #ifndef OPENUG2_RENDER_H
 #define OPENUG2_RENDER_H
 
 #include <SDL.h>
-#ifdef N2_GLES
+#if defined(OPENUG2_GL_HEADER)
+#  include OPENUG2_GL_HEADER
+#elif defined(N2_GLES)
 #  include <SDL_opengles2.h>
 #elif defined(__APPLE__)
 #  define GL_SILENCE_DEPRECATION 1
@@ -22,6 +25,29 @@
 #endif
 
 #include "nfsu2.h"
+
+/* All engine uniform reads and writes go through this interface. The cache is
+ * bounded and keyed by program name, so copied RProg values share state. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+void render_use_program(GLuint program);
+GLint render_uniform_location(GLuint program, const char *name);
+void render_uniform1f(GLint location, GLfloat x);
+void render_uniform1i(GLint location, GLint x);
+void render_uniform2f(GLint location, GLfloat x, GLfloat y);
+void render_uniform3f(GLint location, GLfloat x, GLfloat y, GLfloat z);
+void render_uniform4f(GLint location, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+void render_uniform2fv(GLint location, GLsizei count, const GLfloat *value);
+void render_uniform3fv(GLint location, GLsizei count, const GLfloat *value);
+void render_uniform4fv(GLint location, GLsizei count, const GLfloat *value);
+void render_uniform_matrix4fv(GLint location, GLsizei count, GLboolean transpose,
+                              const GLfloat *value);
+void render_uniform_getfv(GLuint program, GLint location, GLfloat *out, GLsizei nfloats);
+void render_delete_program(GLuint program);
+#ifdef __cplusplus
+}
+#endif
 
 /* per-mesh GPU buffers + computed normals */
 typedef struct {
