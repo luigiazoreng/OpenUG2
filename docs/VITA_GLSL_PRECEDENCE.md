@@ -70,4 +70,26 @@ original. Builds e testes maiores usam lock, `-j1`, limite de 384 MiB,
 swap desativada e reserva de 3 GiB para o Linux. Relatórios privados:
 `nfsu2-data/reports/vita-item5-2026-10-06/precedence-fix/`.
 
-Estado: correção reproduzida no host; reteste físico pendente.
+## Pacote transferido
+
+Build limpo em `1e3dc9f2b8f6c91cc8c34a59449fe4dc7d6b538a`, dez unidades C
+sob `-Wall -Wextra -Werror`, sem warnings. Rebuild do tradutor: pico 78,8 MiB;
+build do aplicativo: 184,5 MiB. Ambos passaram sob limite de 384 MiB. Auditoria
+do archive comprova que somente `glsl_utils.o` mudou. Os quatro patches
+aplicaram sobre a revisão limpa e reproduziram os fontes modificados.
+
+- Archive: `d3411f4d29748509cadab6aff1110b5d46882effdb69e6eccee01c823c061599`
+- VPK: `22b5127dcaaa7d3a70f5fc0d857de7734c783f831c7486201877ade006497c7a`
+- eboot: `3cfa797b8f8396d6b7eef30fa4a28016b69137d5173da006390711ec49546f41`
+- Sessão: `d1ac8c2b09564608921a5782`
+
+Bundle privado:
+`nfsu2-data/vita/stock-240sx-precedence-fix-2026-10-06/ready/`.
+VPK e nonce foram transferidos para `ux0:data/openug2/`; os três assets
+coincidentes foram preservados. Os cinco arquivos passaram readback após
+sync; o USB foi desmontado. Reinstalar `car-viewer.vpk`, abrir a aplicação e
+reativar USB no VitaShell para coleta da nova sessão.
+
+Estado: **correção reproduzida no host e transferida; reteste físico pendente**.
+Sem push, PR ou comentário público. A matriz histórica de homologação está
+preservada e não aprova esta entrega automaticamente.
