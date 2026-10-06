@@ -22,3 +22,8 @@ context and uses `glGetUniformfv` only as its test oracle.
 light-state GL tests under the same guard; their uniform setup now uses the
 renderer wrappers while their `glGetUniformfv` assertions remain test-only
 oracles.
+
+`cache-review-fix.log` is the post-review run of the ASan/UBSan cache test,
+live GL parity test, and wheel/headlight/weather/light-state renderer regressions.
+It also verifies that repeated array writes reuse cached locations and that
+capacity or unknown-state faults terminate with diagnostics.
