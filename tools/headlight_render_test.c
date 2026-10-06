@@ -47,11 +47,11 @@ static void model_lighting_test(const RProg *r) {
     N2Scene scene={.meshes=&mesh,.count=1};
     assert(r->uModel>=0);
     glViewport(0,0,128,64);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
-    glUniform1f(r->uUseTex,0);glUniform1f(r->uHeadGain,0);glUniform1f(r->uFogDensity,0);
-    glUniform3f(r->uCamPos,0,0,6);glUniform3f(r->uLight,.3f,.4f,.8f);
-    glUniform3f(r->uColor,.12f,.16f,.20f);glUniform1f(r->uAmbient,.3f);glUniform1f(r->uDiffuse,.8f);
-    glUniform1f(r->uSpec,.4f);glUniform1f(r->uGloss,12);glUniform1f(r->uEnv,.45f);
-    glUniform1f(r->uClearcoat,.2f);glUniform1f(r->uAlpha,.25f);
+    render_uniform1f(r->uUseTex,0);render_uniform1f(r->uHeadGain,0);render_uniform1f(r->uFogDensity,0);
+    render_uniform3f(r->uCamPos,0,0,6);render_uniform3f(r->uLight,.3f,.4f,.8f);
+    render_uniform3f(r->uColor,.12f,.16f,.20f);render_uniform1f(r->uAmbient,.3f);render_uniform1f(r->uDiffuse,.8f);
+    render_uniform1f(r->uSpec,.4f);render_uniform1f(r->uGloss,12);render_uniform1f(r->uEnv,.45f);
+    render_uniform1f(r->uClearcoat,.2f);render_uniform1f(r->uAlpha,.25f);
     for(int pose=0;pose<3;pose++)for(int glass=0;glass<2;glass++) {
         const float pos[]={.1f,-.1f,.2f},up[]={0,.6f,.8f};
         float body[16],hub[16],model[16],mvp[16],baked[32];
@@ -66,12 +66,12 @@ static void model_lighting_test(const RProg *r) {
             baked[v*5+a]=model[a]*local[v*5]+model[4+a]*local[v*5+1]+model[12+a];
             baked[20+v*3+a]=model[8+a]/scale;
         }
-        glUniform1f(r->uFresnel,(float)glass);
+        render_uniform1f(r->uFresnel,(float)glass);
         unsigned char pixel[2][4];
         for(int pass=0;pass<2;pass++) {
             mesh.verts=pass?baked:local;GpuMesh *gpu=upload_scene(&scene);assert(gpu);
             render_model(r,pass?NULL:model);
-            glUniformMatrix4fv(r->uMVP,1,GL_FALSE,pass?projection:mvp);
+            render_uniform_matrix4fv(r->uMVP,1,GL_FALSE,pass?projection:mvp);
             glClear(GL_COLOR_BUFFER_BIT);draw_gpumesh(gpu);glFinish();
             glReadPixels(64,32,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel[pass]);
             free_scene_gpu(gpu,1);
@@ -91,12 +91,12 @@ static void tail_lamp_test(const RProg *r) {
     unsigned char rgb[]={32,4,3, 192,10,6};
     N2Tex image={.w=2,.h=1,.rgb=rgb};GLuint texture=upload_tex(&image);assert(texture);
     float mvp[]={2,0,0,0,0,2,0,0,0,0,1,0,-1,-1,0,1};
-    render_model(r,NULL);glUniformMatrix4fv(r->uMVP,1,GL_FALSE,mvp);
+    render_model(r,NULL);render_uniform_matrix4fv(r->uMVP,1,GL_FALSE,mvp);
     glViewport(0,0,128,64);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);glUniform1f(r->uFresnel,0);glUniform1f(r->uAlpha,1);
-    glUniform1f(r->uHeadGain,0);glUniform1f(r->uFogDensity,0);
-    glUniform1f(r->uAmbient,.3f);glUniform1f(r->uDiffuse,.8f);
-    glUniform3f(r->uLight,0,0,-1);glUniform3f(r->uCamPos,.5f,.5f,5);
+    glDisable(GL_CULL_FACE);render_uniform1f(r->uFresnel,0);render_uniform1f(r->uAlpha,1);
+    render_uniform1f(r->uHeadGain,0);render_uniform1f(r->uFogDensity,0);
+    render_uniform1f(r->uAmbient,.3f);render_uniform1f(r->uDiffuse,.8f);
+    render_uniform3f(r->uLight,0,0,-1);render_uniform3f(r->uCamPos,.5f,.5f,5);
     const int running[]={0,1,0,1,1,0,1},braking[]={0,0,1,1,0,0,0},boost[]={0,0,0,0,1,1,0};
     int red[2][7];
     for(int textured=0;textured<2;textured++)for(int state=0;state<7;state++) {
@@ -125,7 +125,7 @@ static void tail_lamp_test(const RProg *r) {
                tex,red[tex][0],red[tex][1],red[tex][2],red[tex][3]);
     }
     glDeleteBuffers(1,&quad.vbo);glDeleteBuffers(1,&quad.nbo);glDeleteBuffers(1,&quad.ibo);
-    glDeleteTextures(1,&texture);glUniform3f(r->uEmissive,0,0,0);
+    glDeleteTextures(1,&texture);render_uniform3f(r->uEmissive,0,0,0);
     puts("PASS: rear lamps retain texture detail; day/night brakes, running lights and nitro response");
 }
 
@@ -182,9 +182,9 @@ int main(void) {
     float projection[16]={.02f,0,0,0,0,.05f,0,0,0,0,.01f,0,-1,0,0,1};
     float model[16]={1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     glViewport(0,0,128,64);glDisable(GL_BLEND);glDisable(GL_CULL_FACE);
-    glUniformMatrix4fv(r.uMVP,1,GL_FALSE,projection);
-    glUniform3f(r.uColor,.3f,.3f,.3f);glUniform3f(r.uCamPos,0,0,10);
-    glUniform1f(r.uAmbient,.1f);glUniform1f(r.uDiffuse,0);
+    render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,projection);
+    render_uniform3f(r.uColor,.3f,.3f,.3f);render_uniform3f(r.uCamPos,0,0,10);
+    render_uniform1f(r.uAmbient,.1f);render_uniform1f(r.uDiffuse,0);
     int off=sample(&r,road,model,0,0,25);
     int low=sample(&r,road,model,0,1,25);
     int low_far=sample(&r,road,model,0,1,64);
@@ -251,10 +251,10 @@ int main(void) {
     printf("PASS: low road=%d off=%d; far low=%d high=%d; heading and upper cutoff\n",low,off,low_far,high_far);
     /* Two-sided car glass must not become opaque when seen from inside.
        Same pane and camera, opposite index winding; inspect the shader alpha. */
-    glUniform1f(r.uHeadGain,0);glUniform1f(r.uFresnel,1);glUniform1f(r.uAlpha,.2f);
-    glUniform1f(r.uSpec,.5f);glUniform1f(r.uGloss,40);glUniform1f(r.uEnv,.4f);
-    glUniform1f(r.uFogDensity,0);glUniform3f(r.uLight,0,0,1);
-    glUniform3f(r.uCamPos,20,0,10);glUniform3f(r.uColor,.05f,.05f,.05f);
+    render_uniform1f(r.uHeadGain,0);render_uniform1f(r.uFresnel,1);render_uniform1f(r.uAlpha,.2f);
+    render_uniform1f(r.uSpec,.5f);render_uniform1f(r.uGloss,40);render_uniform1f(r.uEnv,.4f);
+    render_uniform1f(r.uFogDensity,0);render_uniform3f(r.uLight,0,0,1);
+    render_uniform3f(r.uCamPos,20,0,10);render_uniform3f(r.uColor,.05f,.05f,.05f);
     glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     unsigned char glass[2][4];
     for(int side=0;side<2;side++) {
@@ -273,6 +273,6 @@ int main(void) {
     model_lighting_test(&r);
     tail_lamp_test(&r);
     free_headlight_shadows(&shadows);
-    free_scene_gpu(road,1);glDeleteTextures(1,&texture);glDeleteProgram(r.prog);
+    free_scene_gpu(road,1);glDeleteTextures(1,&texture);render_delete_program(r.prog);
     SDL_GL_DeleteContext(context);SDL_DestroyWindow(window);SDL_Quit();return 0;
 }

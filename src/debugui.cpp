@@ -18,6 +18,7 @@ extern "C" {
     extern int   g_tex_aniso_max;
     extern float g_tex_aniso;
     void render_texture_detail(float aniso);
+    void render_use_program(unsigned program);
 }
 
 extern "C" void dbgui_init(struct SDL_Window *win, void *glctx) {
@@ -915,14 +916,14 @@ extern "C" void dbgui_render(void) {
     /* the app binds its shader program once and never rebinds; the GL2 backend
        is fixed-function, so unbind the program around it and restore after. */
     GLint prev = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prev);
-    glUseProgram(0);
+    render_use_program(0);
     /* the GL2 backend draws with client-side arrays: any VBO the app left bound
        would make glVertexPointer read garbage, and attrib 0 aliases gl_Vertex. */
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glDisableVertexAttribArray(0);
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-    glUseProgram(prev);
+    render_use_program(prev);
 }
 
 extern "C" void dbgui_shutdown(void) {

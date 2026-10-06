@@ -3,16 +3,8 @@
  *
  * Uses a minimal shader with position + color uniforms and an embedded
  * 3×5 bitmap font (same glyph set as the main game's render.c, but
- * self-contained — no dependency on render.h). */
-#ifdef __APPLE__
-#ifndef GL_SILENCE_DEPRECATION
-#define GL_SILENCE_DEPRECATION
-#endif
-#include <OpenGL/gl.h>
-#else
-#include <GL/gl.h>
-#endif
-
+ * self-contained — the shared header supplies GL declarations and uniform wrappers. */
+#include "../render.h"
 #include "frontend_draw.h"
 #include <stdlib.h>
 #include <string.h>
@@ -72,12 +64,12 @@ FeDraw *fed_init(void) {
         char log[512];
         glGetProgramInfoLog(d->prog, sizeof log, 0, log);
         fprintf(stderr, "frontend shader link: %s\n", log);
-        glDeleteProgram(d->prog);
+        render_delete_program(d->prog);
         free(d);
         return 0;
     }
-    d->uMVP   = glGetUniformLocation(d->prog, "uMVP");
-    d->uColor = glGetUniformLocation(d->prog, "uColor");
+    d->uMVP   = render_uniform_location(d->prog, "uMVP");
+    d->uColor = render_uniform_location(d->prog, "uColor");
 
     /* unit quad: two triangles, (0,0)-(1,1) */
     float quad[] = { 0,0, 1,0, 1,1, 0,0, 1,1, 0,1 };
@@ -121,18 +113,18 @@ static const unsigned char *fe_glyph(char c) {
 /* Draw a filled rect in NDC. x,y = bottom-left corner. */
 static void fe_rect(FeDraw *d, float x, float y, float w, float h) {
     float M[16] = { w,0,0,0, 0,h,0,0, 0,0,1,0, x,y,0,1 };
-    glUniformMatrix4fv(d->uMVP, 1, GL_FALSE, M);
+    render_uniform_matrix4fv(d->uMVP, 1, GL_FALSE, M);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 static void fe_slant(FeDraw *d, float x, float y, float w, float h, float skew) {
     float M[16] = { w,0,0,0, skew,h,0,0, 0,0,1,0, x,y,0,1 };
-    glUniformMatrix4fv(d->uMVP, 1, GL_FALSE, M);
+    render_uniform_matrix4fv(d->uMVP, 1, GL_FALSE, M);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 static void fe_color(FeDraw *d, float r, float g, float b, float a) {
-    glUniform4f(d->uColor, r, g, b, a);
+    render_uniform4f(d->uColor, r, g, b, a);
 }
 
 static float fe_text_width(const char *s, float px) {
@@ -220,7 +212,7 @@ void fed_draw(FeDraw *d, const Fe *fe, int vp_w, int vp_h) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glUseProgram(d->prog);
+    render_use_program(d->prog);
     glBindBuffer(GL_ARRAY_BUFFER, d->vbo);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
@@ -362,7 +354,7 @@ void fed_draw(FeDraw *d, const Fe *fe, int vp_w, int vp_h) {
     glDisableVertexAttribArray(0);
     if (prev_attr0) glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, (unsigned)prev_buf);
-    glUseProgram((unsigned)prev_prog);
+    render_use_program((unsigned)prev_prog);
     glViewport(prev_vp[0], prev_vp[1], prev_vp[2], prev_vp[3]);
     glBlendFunc((unsigned)prev_blend_src, (unsigned)prev_blend_dst);
     if (!prev_blend) glDisable(GL_BLEND);
@@ -371,7 +363,7 @@ void fed_draw(FeDraw *d, const Fe *fe, int vp_w, int vp_h) {
 
 void fed_free(FeDraw *d) {
     if (!d) return;
-    if (d->prog) glDeleteProgram(d->prog);
+    if (d->prog) render_delete_program(d->prog);
     if (d->vbo) glDeleteBuffers(1, &d->vbo);
     free(d);
 }
