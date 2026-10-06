@@ -1675,6 +1675,12 @@ static void recursive_chunks_test(void) {
     n2_free_scene(&wrapped);
 }
 
+static int empty_texture(const N2Tex *tex) {
+    return tex->w == 0 && tex->h == 0 && tex->rgb == NULL && tex->alpha == NULL &&
+           tex->dxt == NULL && tex->dxtlen == 0 && tex->dxtfmt == 0 && tex->afmt == 0 &&
+           tex->order == 0 && tex->usage == 0 && tex->blend == 0 && tex->wz == 0;
+}
+
 static void signed_file_bounds_test(void) {
     Buf pixels = {.n = 0}, file;
     dxt1_block(&pixels, 0xffff, 0, 0);
@@ -1688,6 +1694,7 @@ static void signed_file_bounds_test(void) {
     patch_field(&file, tpk, rec.hash, 0x24, UINT32_MAX);
     chk("signed file bounds: u32 offset cannot wrap into the file",
         n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+    chk("failed DXT decode clears pointers, dimensions and draw metadata", empty_texture(&tex));
     tpk.blk[0].dbase = -1;
     chk("signed file bounds: negative data base rejected",
         n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
@@ -1703,6 +1710,7 @@ static void signed_file_bounds_test(void) {
     patch_field(&file, tpk, rec.hash, 0x28, UINT32_MAX);
     chk("signed file bounds: palette offset cannot wrap into the file",
         n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+    chk("failed P8 decode clears pointers, dimensions and draw metadata", empty_texture(&tex));
     free(tpk.blk);
 
     unsigned char object[16] = {0};

@@ -32,6 +32,9 @@ no new compiler warning category is disabled.
 - Add synthetic circuit-name and chunk/texture boundary cases. Texture fixtures
   now free their allocated block tables after the final decode; leak detection
   found 15 tables in existing cases and two in the newly added cases.
+- During homologation review, reset every output field when TPK decoding fails.
+  Rejected candidates had already freed RGB but left its pointer and metadata
+  in the output. Failed DXT/P8 cases now verify the empty-output contract.
 
 ## Validation and reproduction
 
@@ -44,7 +47,7 @@ The 255-byte circuit fixture fails its terminator assertion with the original
 resource code and passes with the fix. The resource fixture passes ASan/UBSan
 with leak detection. The complete car-material/parser suite, including the
 new offset and chunk cases, passes ASan/UBSan with leak detection after fixture
-cleanup. Physics and world-instance translation units compile for Vita ARM
+  cleanup. Physics and world-instance translation units compile for Vita ARM
 with the same warning categories treated as errors. ARM compilation is not
 physical console execution or a full-engine Vita build.
 

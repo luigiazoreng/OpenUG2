@@ -3765,6 +3765,9 @@ static int n2_tpk_decode(const unsigned char *d, long len, N2Tpk t, uint32_t has
             return 1;
         }
     }
+    /* Rejected candidates may have allocated and freed RGB while retaining
+       dimensions or draw flags. A failed decode transfers no ownership. */
+    memset(tex, 0, sizeof *tex);
     return 0;
 }
 
