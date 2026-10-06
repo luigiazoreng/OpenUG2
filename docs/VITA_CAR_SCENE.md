@@ -35,3 +35,15 @@ and exercises missing-file and over-limit transactional failures. The counts
 include the key-aware parser path used by the viewer; the probe path without a
 texture-key catalogue reports different vertex/index totals. Its fixture has
 no renderer or display path.
+
+`tools/vita_car_viewer_test.c` is the production renderer's host GPU harness.
+It creates a hidden SDL GL 2.1 context (or GLES 2.0 with `N2_GLES`), prints the
+driver, uses the production `car_viewer_create/draw/destroy` path, and checks
+front/rear visibility, paint and headlight pixel changes, pause background,
+reported mesh/texture/GPU/file budgets, draw count, GL errors, and two complete
+create/destroy cycles. It writes front, paint, headlight, rear, and paused PNGs
+only beneath the caller's new output directory. The 240SX parser currently
+classifies its four `BRAKELIGHT` category slices as `BRAKELIGHTGLASS` and
+`MOLDINGS`, not as a trusted emissive lens; the harness therefore validates
+lights using the two proven front headlight emitters and still exercises the
+rear camera for full-car visibility.
