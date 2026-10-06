@@ -105,7 +105,11 @@ CarViewer *car_viewer_create(const char *root, char *error, size_t errorcap) {
     size_t caption_gpu_bytes = 0;
     if (!v) { snprintf(error, errorcap, "viewer allocation failed"); return NULL; }
     if (!car_scene_load(root, &v->car, error, errorcap)) goto fail;
+#if OPENUG2_VITA_CAR_SHADER
+    v->program = render_program_static_car();
+#else
     v->program = render_program();
+#endif
     if (!v->program.prog) { snprintf(error, errorcap, "production renderer shader failed; collect GPU diagnostics"); goto fail; }
     for (int i = 0; i < v->car.scene.count; i++) {
         const N2Mesh *m = v->car.scene.meshes+i;

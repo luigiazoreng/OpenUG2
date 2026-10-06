@@ -235,6 +235,8 @@ void render_model(const RProg *r,const float model[16]);
 /* Optional startup diagnostics; logger is borrowed and called on the GL thread.
    NULL disables it. No messages are emitted in the per-frame draw path. */
 void render_set_diagnostic_logger(void (*logger)(const char *, ...));
+/* Dry parked-car profile omits world wetness, SSR and projected headlamps. */
+RProg    render_program_static_car(void);
 RProg    render_program(void);          /* compile+link the shader, fetch uniforms */
 GpuMesh *upload_scene(N2Scene *s);      /* VBO/NBO/IBO per mesh, normals computed */
 void free_scene_gpu(GpuMesh *gm, int count);

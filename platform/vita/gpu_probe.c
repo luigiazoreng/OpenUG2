@@ -265,14 +265,22 @@ int vita_gpu_probe_run(void) {
     GLenum optional_error = glGetError();
     if (optional_error) vita_log("GPU CAPS uniform_vector_query UNAVAILABLE error=0x%x\n", (unsigned)optional_error);
     vita_log("GPU CAPS texture_units=%d max_texture=%d vertex_uniform_vectors=%d fragment_uniform_vectors=%d\n", units, size, vertex, fragment);
-    RProg engine = render_program(); GLint linked = 0;
+#if OPENUG2_VITA_CAR_SHADER
+    vita_log("GPU SHADER PROFILE static_car full_engine=deferred\n");
+    const char *program_probe = "viewer_program";
+    RProg engine = render_program_static_car();
+#else
+    const char *program_probe = "engine_program";
+    RProg engine = render_program();
+#endif
+    GLint linked = 0;
     if (engine.prog) glGetProgramiv(engine.prog, GL_LINK_STATUS, &linked);
     GLenum engine_error = glGetError();
     int engine_ok = linked && units >= 6 && !limit_error && engine_error == GL_NO_ERROR;
     if (!engine_ok) {
         char info[2048] = {0}; if (engine.prog) glGetProgramInfoLog(engine.prog, sizeof info, NULL, info);
-        vita_log("GPU PROBE engine_program FAIL linked=%d units=%d log=%s\n", linked, units, info);
-    } else vita_log("GPU PROBE engine_program PASS linked=1\n");
+        vita_log("GPU PROBE %s FAIL linked=%d units=%d log=%s\n", program_probe, linked, units, info);
+    } else vita_log("GPU PROBE %s PASS linked=1\n", program_probe);
     /* Uniform-state wrapper is also responsible for program-cache retirement. */
     render_use_program(0); if (engine.prog) render_delete_program(engine.prog);
     Probe p = {0}; p.passed = engine_ok; p.failed = !engine_ok;

@@ -601,8 +601,7 @@ static const char *VS =
     "  vPos=(uModel*vec4(aPos,1.0)).xyz; vColor=aColor;\n"
     "  gl_Position=uMVP*vec4(aPos,1.0); vDepth=gl_Position.w; }\n";
 
-static const char *FS =
-    GLSL_HEADER
+static const char *FS_BODY =
     "varying vec2 vUV; varying vec3 vN; varying float vDepth; varying vec3 vPos;\n"
     "varying vec4 vColor;\n"
     "uniform sampler2D uTex;\n"
@@ -613,11 +612,13 @@ static const char *FS =
     "uniform vec3 uCamPos; uniform float uEnv; uniform float uUVCheck;\n"
     "uniform samplerCube uEnvCube; uniform float uEnvReady; uniform vec3 uEnvOrigin;\n"
     "uniform float uGloss; uniform float uFlipN;\n"
+    "#ifndef N2_STATIC_CAR\n"
     "uniform float uWetness, uWeatherTime, uRainIntensity;\n"
     "uniform vec4 uWetLightPos[8],uWetLightColor[8];\n"
     "uniform float uPaintLights;\n"
     "uniform float uRoadReflection; uniform vec4 uReflectionParams;\n"
     "uniform sampler2D uReflectionColor,uReflectionDepth; uniform mat4 uMVP;\n"
+    "#endif\n"
     "uniform float uRimTint;\n"   /* >0: recolor the rim diffuse toward uColor */
     "uniform vec3 uEmissive;\n"   /* lamp emission added on top of the lit result */
     "uniform float uVista;\n"     /* >0.5: authored backdrop pass, alpha-blended */
@@ -630,6 +631,7 @@ static const char *FS =
     "uniform float uEmissiveTex;\n" /* authored texture-backed unlit pass */
     "uniform float uFresnel;\n"   /* >0.5: glass -- fresnel drives alpha + reflection */
     "uniform float uClearcoat;\n" /* >0: second tight specular lobe over the base coat */
+    "#ifndef N2_STATIC_CAR\n"
     "uniform vec4 uHeadPos[2];\n"
     "uniform vec3 uHeadForward, uHeadRight, uHeadUp;\n"
     "uniform vec4 uHeadShape;\n" /* horizontal/vertical spread, downward slope, range */
@@ -695,6 +697,7 @@ static const char *FS =
     "  }\n"
     "  return vec4(0.0);\n"
     "}\n"
+    "#endif\n"
     /* exp^2 distance fog: fades far batches into the sky colour (which is
        cleared to uFogColor, so the horizon and the haze always agree) */
     "void main(){\n"
@@ -759,6 +762,7 @@ static const char *FS =
     /* World-anchored patches avoid texture seams and camera-following puddles.
        ponytail: analytic sky/key-light fallback for offscreen geometry; use
        environment probes if reflections must survive outside the camera. */
+    "#ifndef N2_STATIC_CAR\n"
     "  float wet=uWetness*smoothstep(0.55,0.9,N.z);\n"
     "  float puddle=0.0;\n"
     "  if(wet>0.001){\n"
@@ -774,6 +778,7 @@ static const char *FS =
     "    vec4 reflected=roadReflection(N,V,wet,puddle); reflected.a*=fog;\n"
     "    gl_FragColor=reflected;return;\n"
     "  }\n"
+    "#endif\n"
     "  float nl=max(dot(N,L),0.0);\n"
     "  float d=uAmbient+uDiffuse*nl;\n"   /* directional; reveals body form */
     /* uAmbient/uDiffuse are one shared per-frame pair (world+cars both read
@@ -835,6 +840,7 @@ static const char *FS =
        use the same byte slot as direct diffuse color for windows and trim. */
     "  if(uVColor>1.5) lit *= vColor.rgb;\n"
     "  else if(uVColor>0.001) lit *= clamp(vColor.rgb*2.0, 0.0, 1.6);\n"
+    "#ifndef N2_STATIC_CAR\n"
     "  if(wet>0.001){\n"
     "    lit*=1.0-0.32*wet;\n"
     "    float wf=0.025+0.975*pow(1.0-max(dot(N,V),0.0),5.0);\n"
@@ -880,6 +886,7 @@ static const char *FS =
     "      }\n"
     "    }\n"
     "  }\n"
+    "#endif\n"
     /* Local scene cube, sampled in world space so reflections stay anchored
        while the body banks. Fresnel adds clear-coat reflection without washing
        the base paint into the old constant warm horizon band. */
@@ -1221,9 +1228,18 @@ void render_model(const RProg *r,const float model[16]) {
     render_uniform_matrix4fv(r->uModel,1,GL_FALSE,model?model:identity);
 }
 
-RProg render_program(void) {
+static RProg render_program_profile(int static_car) {
     RProg r = {0};
-    GLuint vertex = compile(GL_VERTEX_SHADER, VS), fragment = compile(GL_FRAGMENT_SHADER, FS);
+    const char *define = static_car ? "#define N2_STATIC_CAR 1\n" : "";
+    size_t header = strlen(GLSL_HEADER), prefix = strlen(define), body = strlen(FS_BODY);
+    char *source = malloc(header + prefix + body + 1);
+    if (!source) { RENDER_LOG("RENDER PROGRAM FAIL source_allocation=1\n"); return r; }
+    memcpy(source, GLSL_HEADER, header);
+    memcpy(source + header, define, prefix);
+    memcpy(source + header + prefix, FS_BODY, body + 1);
+    RENDER_LOG("RENDER PROFILE %s\n", static_car ? "static_car" : "full_engine");
+    GLuint vertex = compile(GL_VERTEX_SHADER, VS), fragment = compile(GL_FRAGMENT_SHADER, source);
+    free(source);
     if (!vertex || !fragment) {
         if (vertex) glDeleteShader(vertex);
         if (fragment) glDeleteShader(fragment);
@@ -1334,6 +1350,9 @@ RProg render_program(void) {
     render_uniform3f(r.uLight, N2_SUN_X, N2_SUN_Y, N2_SUN_Z);
     return r;
 }
+
+RProg render_program(void) { return render_program_profile(0); }
+RProg render_program_static_car(void) { return render_program_profile(1); }
 
 /* Authored car normals preserve smoothing across material/UV seams. Generated
  * geometry and invalid source normals use area-weighted face accumulation;
