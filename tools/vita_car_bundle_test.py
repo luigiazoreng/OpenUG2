@@ -133,6 +133,13 @@ class BundleTests(unittest.TestCase):
         (mount / "data/openug2").mkdir(parents=True)
         (mount / "data/openug2/vita-car-viewer.log").write_text(
             good_log(json.loads((bundle / "manifest.json").read_text())["run_id"]), encoding="utf-8")
+        run_id = json.loads((bundle / "manifest.json").read_text())["run_id"]
+        (mount / "data/openug2/startup-guard.log").write_text(
+            "STARTUP SESSION run_id=" + run_id + "\nSTARTUP END stage=car_load elapsed_ms=0\n")
+        (mount / "data/openug2/shader-vertex.cg").write_text(
+            "// CAR SESSION run_id=" + run_id + "\nvoid main() {}\n")
+        (mount / "data/openug2/shader-fragment.cg").write_text(
+            "// CAR SESSION run_id=" + "0" * 24 + "\nstale source\n")
         with mock.patch.object(vita_device, "USB", FakeUSB):
             self.assertEqual(cb.main(["deploy", "--bundle", str(bundle), "--usb-root", str(mount)]), 0)
             out = self.base / "collected"
@@ -141,6 +148,11 @@ class BundleTests(unittest.TestCase):
         report = json.loads((out / "result.json").read_text())
         self.assertEqual(report["state"], "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED")
         self.assertTrue(report["checks"]["installed_eboot_matches_bundle"])
+        self.assertTrue(report["startup_diagnostics"]["startup-guard.log"]["session_matches"])
+        self.assertTrue(report["startup_diagnostics"]["shader-vertex.cg"]["session_matches"])
+        self.assertFalse(report["startup_diagnostics"]["shader-fragment.cg"]["session_matches"])
+        self.assertEqual((out / "shader-fragment.cg").read_bytes(),
+                         (mount / "data/openug2/shader-fragment.cg").read_bytes())
         self.assertIn("real-car appearance", report["manual_review_required"])
 
     def test_existing_asset_mismatch_preserved_and_vpk_replacement(self):

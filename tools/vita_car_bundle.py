@@ -298,6 +298,14 @@ def collect(args):
         eboot_info = fetch_installed_eboot(usb, installed)
         config = manifest["session_config"]
         current_config = usb.fetch(config["device_path"], output / "diagnostic-session.txt", MAX_FILE)
+        diagnostics = {}
+        for name, limit in (("startup-guard.log", 64 * 1024), ("shader-vertex.cg", 65536 + 128),
+                            ("shader-fragment.cg", 65536 + 128)):
+            metadata = usb.fetch("data/openug2/" + name, output / name, limit)
+            if metadata is not None:
+                first_line = (output / name).read_text(errors="replace").splitlines()
+                marker = ("STARTUP SESSION run_id=" if name.endswith(".log") else "// CAR SESSION run_id=") + manifest["run_id"]
+                diagnostics[name] = {**metadata, "session_matches": bool(first_line and first_line[0] == marker)}
     with zipfile.ZipFile(bundle / "data" / VPK_REL) as archive:
         expected_eboot = hashlib.sha256()
         eboot_bytes = 0
@@ -316,7 +324,7 @@ def collect(args):
         raise ValueError("Current diagnostic-session.txt does not match this prepared bundle")
     report.update({"schema": 1, "run_id": manifest["run_id"], "log": log_info,
                    "installed_eboot": eboot_info, "bundle_vpk": manifest["vpk"],
-                   "session_config": config,
+                   "session_config": config, "startup_diagnostics": diagnostics,
                    "manual_observations": "not supplied; no visual/input evidence inferred"})
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"{report['state']}\n{output / 'result.json'}")

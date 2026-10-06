@@ -1,0 +1,51 @@
+--- a/source/custom_shaders.c
++++ b/source/custom_shaders.c
+@@ -26,6 +26,12 @@
+ #include "shared.h"
+ #include "utils/glsl_utils.h"
+ #include "utils/shacccg_paramquery.h"
++
++/* Optional application diagnostics; no GL work on another thread. */
++extern void openug2_vitagl_trace(const char *, unsigned, const char *, unsigned) __attribute__((weak));
++static void startup_trace(const char *phase, unsigned type, const char *source, unsigned bytes) {
++	if (openug2_vitagl_trace) openug2_vitagl_trace(phase, type, source, bytes);
++}
+ #if defined(HAVE_SHADER_CACHE) || defined(HAVE_TEX_CACHE)
+ #define XXH_STATIC_LINKING_ONLY
+ #define XXH_IMPLEMENTATION
+@@ -619,13 +625,17 @@
+ static inline __attribute__((always_inline)) void compile_shader(shader *s, GLboolean save_bindings) {
+ #endif
+ 	// Compiling shader source
++	startup_trace("compile_begin", s->type, (const char *)s->source, s->size);
+ 	s->prog = shark_compile_shader_extended((const char *)s->source, &s->size, s->type == GL_FRAGMENT_SHADER ? SHARK_FRAGMENT_SHADER : SHARK_VERTEX_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
++	startup_trace(s->prog ? "compile_end_ok" : "compile_end_failed", s->type, NULL, s->size);
+ 	if (s->prog) {
+ 		vgl_free(s->source);
+ 		s->source = NULL;
+ 		SceGxmProgram *res = (SceGxmProgram *)vglMalloc(s->size);
+ 		vgl_fast_memcpy((void *)res, (void *)s->prog, s->size);
++		startup_trace("register_begin", s->type, NULL, s->size);
+ 		int r = sceGxmShaderPatcherRegisterProgram(gxm_shader_patcher, res, &s->id);
++		startup_trace(r ? "register_end_failed" : "register_end_ok", s->type, NULL, s->size);
+ #ifdef LOG_ERRORS
+ 		if (r) {
+ 			vgl_log("%s:%d %s: Program failed to register on sceGxm (%s).\n", __FILE__, __LINE__, __func__, get_gxm_error_literal(r));
+@@ -2168,7 +2178,9 @@
+ #endif
+ 		if (!p->vshader->prog || !p->fshader->prog) {
+ 			if (p->vshader->is_glsl || p->fshader->is_glsl) {
++				startup_trace("translate_begin", 0, NULL, 0);
+ 				glsl_translator_set_process(p->vshader, p->fshader);
++				startup_trace("translate_end", 0, NULL, 0);
+ 			}
+ 			if (!p->vshader->prog) {
+ #ifdef HAVE_SHADER_CACHE
+@@ -2210,6 +2222,7 @@
+ 		vgl_log("%s:%d: %s: A program has been re-linked. vitaGL doesn't support re-linking, glitches may happen.\n", __FILE__, __LINE__, __func__);
+ 		return;
+ 	}
++	startup_trace("link_begin", 0, NULL, 0);
+ 	p->status = PROG_LINKED;
+ 	
+ 	// Set up uniform buffers
