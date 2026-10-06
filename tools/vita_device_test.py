@@ -28,6 +28,8 @@ SDL driver=VITA drawable=960x544
 controller: OpenUG2 Vita
 GLSL + VBO + u16 IBO + RGBA texture: initialized (device visibility still requires inspection)
 240SX stock parser: meshes=101 vertices=30571 indices=18237 material_hashes=24 source_bytes=7675600 mesh_cpu_bytes=1 load_ms=1.0
+Start=pause Cross=retry parser Select+Start=exit; green background=asset parsed, red=asset unavailable
+world/physics/audio inactive; resident timings and traffic inactive; GPU ms/process RAM unavailable
 fps=30.0 cpu_submit_ms=0.2 frame_ms=33.3
 vgl_free_bytes: cdram=1 ram=1 phycont=1
 shutdown complete: frames=900 status=0
@@ -54,6 +56,9 @@ class EvidenceTest(unittest.TestCase):
         cases = [GOOD_LOG.replace("shutdown complete:", "interrupted:"),
                  GOOD_LOG.replace("meshes=101", "meshes=100"),
                  GOOD_LOG + "draw failed: 0x1\n",
+                 GOOD_LOG + "240SX parser: asset unavailable (0.0 ms)\n",
+                 GOOD_LOG + "shader type=0x8b31 failed: error\n",
+                 GOOD_LOG + "built-in controller unavailable: error\n",
                  GOOD_LOG.replace("frames=900 status=0", "frames=0 status=0")]
         for log in cases:
             self.assertEqual(vd.assess(log, None, fingerprint, OBS)["state"], "REVIEW_REQUIRED")

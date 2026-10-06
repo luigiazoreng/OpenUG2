@@ -198,6 +198,37 @@ Evidência desta transferência:
 releituras. VPK no Vita:
 `ux0:data/openug2/deploy/20261006T005820Z-c9e65762/openug2-vita.vpk`.
 
-**Instalação, imagem, controles e saída no console ainda aguardam evidência.**
-USB validado não significa V0/V1/V2 homologados. FTP físico também continua
-pendente; o usuário pode optar por esse transporte nas próximas sessões.
+Na primeira execução, o usuário confirmou o triângulo branco/laranja e fundo
+verde. O log foi recolhido em `collection-ef9b0f29/vita-bringup.log`, dentro do
+diretório acima, e comprova:
+
+- drawable **960×544** e recursos GLSL/VBO/IBO/RGBA inicializados;
+- parser stock **101 meshes / 30.571 vértices / 18.237 índices / 24 hashes**,
+  carregamento **2.548,153 ms**, `mesh_cpu_bytes=1028482`;
+- saída limpa após **530 frames**, status **0**;
+- 17 amostras após o primeiro frame, **30,54–30,66 FPS**;
+- pools livres constantes nas 18 amostras, sem medição de pico de VRAM/RAM.
+
+O primeiro frame teve **1.012,104 ms**; sua causa não foi determinada.
+Essa amostra está preservada, separada das medidas seguintes. A mediana de
+CPU submit nas amostras seguintes foi **0,349 ms** e de frame **32,712 ms**.
+
+A coleta original marcou falso erro porque o verificador interpretava
+`GPU ms/process RAM unavailable` (mensagem informativa) como falha. A correção
+passou nos seis testes, incluindo diagnósticos reais de falha e essas mensagens
+informativas. `reassessment.json` reavalia o mesmo log sem alterar o original;
+as oito checagens automáticas passaram. `runtime-summary.json` registra os
+resultados e limites. **O smoke test completo permanece pendente**, pois o
+usuário informou que ainda não testou todos os controles. Também faltam
+identificação modelo/firmware e ciclos adicionais de saída/reabertura.
+
+Primeira evidência física: V0 instalado/contexto/saída, parte inicial de V1
+(triângulo RGBA) e V2 (parser stock). FTP físico, demais probes V1 e renderer
+completo continuam pendentes. Nenhum comentário foi publicado em issue.
+
+Para o teste dos controles, foi preparado no host
+`../nfsu2-data/reports/vita-device/vita-controls-a7476a78/deployment.json`.
+Ele reutiliza os mesmos arquivos previamente verificados e associa como
+baseline o hash do primeiro log; não houve nova transferência ou mudança de
+VPK. A próxima coleta nesse diretório exigirá um log diferente e repetirá a
+conferência dos artefatos armazenados no Vita.

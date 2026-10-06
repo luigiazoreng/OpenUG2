@@ -264,7 +264,14 @@ def assess(log, previous, current, observations):
         "stock_240sx_counts": bool(counts) and all(tuple(map(int, c)) == (101, 30571, 18237, 24) for c in counts),
         "clean_shutdown": len(shutdown) == 1 and int(shutdown[0][0]) > 0 and shutdown[0][1] == "0",
         "profiling_present": "cpu_submit_ms=" in log and "vgl_free_bytes:" in log,
-        "no_reported_failure": not re.search(r"failed|unavailable|required uniforms missing|unexpected drawable|240SX parser:", log, re.I),
+        # Match emitted diagnostics, not help text explaining unavailable
+        # telemetry or the red background for a missing/failed asset.
+        "no_reported_failure": not re.search(
+            r"^(?:shader type=.* failed:|shader link failed:|required uniforms missing|"
+            r"GPU resource upload failed:|draw failed:|240SX parser:|"
+            r"unexpected drawable size|built-in controller unavailable:|controller mapping:|"
+            r"(?:SDL init|GL attributes|window|context|timer init):|GL version=unavailable)",
+            log, re.MULTILINE),
     }
     observed = all(observations.get(k) == "yes" for k in ("installed_vpk", "triangle", "green", "inputs")) and bool(observations.get("device_info", "").strip())
     state = "SMOKE_ACCEPTED_WITH_OPERATOR_OBSERVATIONS" if all(checks.values()) and observed else "REVIEW_REQUIRED"

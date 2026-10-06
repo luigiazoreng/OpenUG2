@@ -333,8 +333,10 @@ Initial bring-up validation (2026-10-05, engine `84ab8b3`):
 At the original bootstrap validation, no physical device or install channel
 was available. The user subsequently connected a Vita; Linux transport setup
 and device execution are tracked in [VITA_DEVICE_TESTING.md](VITA_DEVICE_TESTING.md).
-V0/V1/V2 on-device runtime, install/shutdown and the initial
-Vita real-content success criterion remain **unverified**. SDK/host headers and
+A first physical run has now verified installation, 960×544 display, the
+indexed RGBA triangle, stock 240SX parser counts and orderly shutdown.
+Controls/repeated runs and the remaining V1 shader/DXT/FBO probes are pending;
+the full car/world renderer remains deferred. SDK/host headers and
 validation logs are temporary files outside Git; the SDK remains available
 for this workspace at `/tmp/openug2-vitasdk` until temporary files are removed.
 
@@ -352,7 +354,7 @@ README for commands and copying its contents to `ux0:data/openug2`.
 
 For Linux USB/FTP deployment, checksums and log collection, follow
 [VITA_DEVICE_TESTING.md](VITA_DEVICE_TESTING.md). The physical gates below
-remain pending until real console evidence is collected.
+are updated only from collected console evidence.
 
 1. Install `build/vita/openug2-vita.vpk` on the user's unlocked Vita, with the
    runtime compiler configured as described by vitaGL. Do not put it in Git.
@@ -375,9 +377,9 @@ remain pending until real console evidence is collected.
 
 | Gate | Required evidence | Current status |
 | --- | --- | --- |
-| V0 | VPK installs, SDL/vitaGL display and orderly exit on real Vita | platform implemented; device test pending |
-| V1 | textured indexed triangle; then main shader, DXT and FBO probes | simple probe implemented; device test pending |
-| V2 | own 240SX data opens and parser aggregate counts match desktop | host probe tested with supplied original data; Vita device pending |
+| V0 | VPK installs, SDL/vitaGL display and orderly exit on real Vita | first physical run verified; repeated runs pending |
+| V1 | textured indexed triangle; then main shader, DXT and FBO probes | triangle visually verified on Vita; main shader/DXT/FBO deferred |
+| V2 | own 240SX data opens and parser aggregate counts match desktop | physical stock parser matches host on SHA-256 verified input |
 | V3 | full real 240SX mesh/material/texture/camera draw | deferred |
 | V4 | one L4RA static resident; load/RAM/GPU/draw measurements | deferred |
 | V5 | controls/60 Hz physics/collision; 30 Hz draw | deferred |
