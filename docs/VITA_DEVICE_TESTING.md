@@ -373,3 +373,23 @@ aperte START uma vez; espere o parser concluir e aperte START novamente.
 Para sair, **segure SELECT e aperte START mantendo SELECT pressionado**;
 depois reative USB no VitaShell para a coleta. Não publique resultado de
 homologação completa antes dessa validação e dos controles restantes.
+
+### Releitura assíncrona validada no Vita — saída ainda pendente
+
+O log do novo VPK foi recolhido em
+`vita-20261006T014608Z-e911f9f1/collection-585834bf/`. O `eboot.bin` instalado
+foi relido do console e seu SHA-256 coincide com o membro do VPK desta build.
+`async-runtime-summary.json` registra **quatro releituras iniciadas e
+concluídas**, cinco pedidos extras de Cross ignorados e **13 alternâncias
+de pausa durante o trabalho do parser**. As contagens stock continuam iguais.
+
+Nas 13 amostras de perfil durante a leitura, os intervalos foram
+**27,22–30,17 FPS**, CPU submit **2,747–12,355 ms** e frame
+**33,149–36,731 ms**. Isso demonstra entrada/render continuando nesse teste;
+não é um benchmark da engine completa nem garantia de 30 FPS mínimos.
+
+Ainda não existe `shutdown complete` ou `quit=1` nesse log. SELECT e START
+aparecem separados, sem combinação simultânea registrada. Foi solicitado um
+teste específico mantendo SELECT pressionado ao apertar START e recolhendo
+o log após a saída. Não há homologação completa desta build enquanto esse
+caso e a cobertura restante dos controles estiverem pendentes.
