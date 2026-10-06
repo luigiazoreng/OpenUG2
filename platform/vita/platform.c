@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef OPENUG2_VITA
+#include <psp2/ctrl.h>
+#endif
 
 static FILE *log_file;
 
@@ -48,7 +51,15 @@ static void open_controller(VitaPlatform *p) {
         }
         p->controller = SDL_GameControllerOpen(i);
     }
-    if (p->controller) vita_log("controller: %s\n", SDL_GameControllerName(p->controller));
+    if (p->controller) {
+        SDL_version version;
+        SDL_GetVersion(&version);
+        vita_log("controller: %s\n", SDL_GameControllerName(p->controller));
+        vita_log("SDL input version=%u.%u.%u\n", version.major, version.minor, version.patch);
+        char *mapping = SDL_GameControllerMapping(p->controller);
+        vita_log("SDL controller mapping=%s\n", mapping ? mapping : "missing");
+        SDL_free(mapping);
+    }
 }
 
 int vita_platform_open(VitaPlatform *p) {
@@ -84,6 +95,7 @@ fail:
 
 void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
     memset(input, 0, sizeof *input);
+    Uint32 event_pressed = 0;
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT || event.type == SDL_APP_TERMINATING) input->quit = 1;
@@ -93,7 +105,33 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
             p->previous_buttons = 0;
         }
         if (event.type == SDL_CONTROLLERDEVICEADDED && !p->controller) open_controller(p);
+        if ((event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP) &&
+            p->controller && event.cbutton.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(p->controller)) &&
+            event.cbutton.button < SDL_CONTROLLER_BUTTON_MAX) {
+            const char *name = SDL_GameControllerGetStringForButton((SDL_GameControllerButton)event.cbutton.button);
+            vita_log("input event: button=%s state=%s\n", name ? name : "unknown",
+                event.type == SDL_CONTROLLERBUTTONDOWN ? "down" : "up");
+            if (event.type == SDL_CONTROLLERBUTTONDOWN) event_pressed |= 1u << event.cbutton.button;
+        }
     }
+#ifdef OPENUG2_VITA
+    /* Observe hardware independently of SDL without changing sampling mode or
+       substituting the controller backend. Only button transitions are logged. */
+    SceCtrlData native;
+    int native_result = sceCtrlPeekBufferPositive(0, &native, 1);
+    if (native_result > 0) {
+        if (!p->native_input_logged || native.buttons != p->previous_native_buttons) {
+            vita_log("input native: buttons=0x%08lx start=%d select=%d lx=%u ly=%u\n",
+                (unsigned long)native.buttons, !!(native.buttons & SCE_CTRL_START),
+                !!(native.buttons & SCE_CTRL_SELECT), (unsigned)native.lx, (unsigned)native.ly);
+            p->previous_native_buttons = native.buttons;
+            p->native_input_logged = 1;
+        }
+    } else if (!p->native_input_logged) {
+        vita_log("input native: read_result=%d\n", native_result);
+        p->native_input_logged = 1;
+    }
+#endif
     if (!p->controller) return;
     Sint16 axis = SDL_GameControllerGetAxis(p->controller, SDL_CONTROLLER_AXIS_LEFTX);
     float steering = axis < 0 ? axis / 32768.0f : axis / 32767.0f;
@@ -105,7 +143,9 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
     Uint32 buttons = 0;
     for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; b++)
         if (SDL_GameControllerGetButton(p->controller, (SDL_GameControllerButton)b)) buttons |= 1u << b;
-    Uint32 pressed = buttons & ~p->previous_buttons;
+    /* A down/up pair can be drained by the same poll. Preserve its press edge
+       even if the final held state is already released. */
+    Uint32 pressed = (buttons & ~p->previous_buttons) | event_pressed;
 #define HELD(b) ((buttons & (1u << SDL_CONTROLLER_BUTTON_##b)) != 0)
 #define PRESSED(b) ((pressed & (1u << SDL_CONTROLLER_BUTTON_##b)) != 0)
     input->throttle = HELD(RIGHTSHOULDER) ? 1.0f : 0.0f;
@@ -116,6 +156,10 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
     input->confirm_pressed = PRESSED(A);
     input->quit |= HELD(BACK) && HELD(START);
     input->pause_pressed = PRESSED(START) && !input->quit;
+    if (buttons != p->previous_buttons || event_pressed) {
+        vita_log("input SDL: buttons=0x%08lx start=%d select=%d pause_pressed=%d quit=%d\n",
+            (unsigned long)buttons, HELD(START), HELD(BACK), input->pause_pressed, input->quit);
+    }
 #undef HELD
 #undef PRESSED
     p->previous_buttons = buttons;

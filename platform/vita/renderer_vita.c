@@ -96,7 +96,8 @@ fail:
 int vita_renderer_draw(VitaRenderer *r, int asset_ok, int paused) {
     const float identity[16] = {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     glViewport(0, 0, VITA_WIDTH, VITA_HEIGHT);
-    glClearColor(asset_ok ? 0.02f : 0.14f, asset_ok ? 0.13f : 0.02f, 0.05f, 1);
+    if (paused) glClearColor(0.02f, 0.05f, 0.45f, 1); /* Explicit pause diagnostic. */
+    else glClearColor(asset_ok ? 0.02f : 0.14f, asset_ok ? 0.13f : 0.02f, 0.05f, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE);
     glUseProgram(r->program); glUniformMatrix4fv(r->mvp, 1, GL_FALSE, identity);

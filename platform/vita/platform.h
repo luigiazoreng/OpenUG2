@@ -19,6 +19,8 @@ typedef struct {
     SDL_GLContext context;
     SDL_GameController *controller;
     Uint32 previous_buttons;
+    Uint32 previous_native_buttons;
+    int native_input_logged;
     int sdl_ready;
 } VitaPlatform;
 

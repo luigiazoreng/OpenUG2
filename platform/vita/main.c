@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     VitaRenderer *renderer = vita_renderer_create();
     if (!renderer) { vita_platform_close(&platform); vita_log_close(); return 1; }
     int asset_ok = probe_asset(), paused = 0, status = 0;
-    vita_log("Start=pause Cross=retry parser Select+Start=exit; green background=asset parsed, red=asset unavailable\n");
+    vita_log("Start=pause (blue background) Cross=retry parser Select+Start=exit; green background=asset parsed, red=asset unavailable\n");
     vita_log("world/physics/audio inactive; resident timings and traffic inactive; GPU ms/process RAM unavailable\n");
     Uint64 frequency = SDL_GetPerformanceFrequency(), report_start = SDL_GetPerformanceCounter();
     unsigned long frames = 0, report_frames = 0;

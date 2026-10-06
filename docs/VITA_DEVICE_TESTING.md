@@ -101,7 +101,8 @@ para o VPK, geometria e instalação (reserve pelo menos 32 MiB no `ux0:`).
    branco/laranja e fundo verde, correspondente ao parser do 240SX. O carro
    ainda não é desenhado. Se houver erro ou fundo vermelho, registre isso.
 4. Mantenha-o aberto por aproximadamente 30 segundos. Teste analógico esquerdo,
-   L/R, Cross, Square, Triangle e START. START alterna pausa/cor; Cross refaz
+   L/R, Cross, Square, Triangle e START. Na versão de diagnóstico de entrada,
+   START alterna fundo verde/azul; Cross refaz
    o parser; Triangle registra a ação de câmera. Para valores de botões
    aparecerem no perfil, segure cada um por cerca de dois segundos.
 5. Saia com **SELECT+START**. Reabra VitaShell e restabeleça a conexão.
@@ -245,7 +246,7 @@ uma vez por segundo e podem perder pressões curtas.
 O usuário informou não perceber mudança ao pressionar botões/analógico.
 Esses controles não movimentam o triângulo neste bootstrap. Cross apenas
 refaz o parser; L/R/Square/analógico alimentam o log e Triangle registra
-a ação sem câmera. **START deve mudar a área branca do triângulo para um
+a ação sem câmera. Na versão inicial, **START deveria mudar a área branca do triângulo para um
 tom amarelado**, alternando a componente azul entre 1 e 0,3; pressione-o
 novamente para retornar. Esse efeito deve ser verificado separadamente.
 
@@ -253,3 +254,55 @@ Também falta `shutdown complete` no segundo log. Não foi estabelecida a
 causa (por exemplo, troca de aplicativo, encerramento externo ou dificuldade
 com a combinação). O caso permanece pendente até testar SELECT+START e
 recolher a saída limpa. A primeira saída limpa já registrada é preservada.
+
+### Diagnóstico de START
+
+A terceira coleta, `vita-controls-94322880/collection-e6e95dc6/`, tem novo
+log de 3.602 bytes, parser correto e nenhuma mensagem `paused=`/saída limpa.
+O usuário novamente relatou ausência de mudança de cor ao pressionar START.
+Os controles amostrados nesse log estão zerados. Assim, não há evidência de
+que o aplicativo tenha recebido START; não se atribui o caso a uma mudança
+visual sutil nem a uma falha de hardware sem diagnóstico adicional.
+
+A versão seguinte acrescenta:
+
+- registros de transições do botão nativo por `sceCtrlPeekBufferPositive`,
+  sem alterar modo de leitura ou substituir SDL;
+- versão SDL, mapeamento usado, eventos down/up e START/SELECT normalizados;
+- retenção do evento down quando down/up são consumidos no mesmo poll;
+- fundo azul forte durante a pausa, restaurando verde/vermelho ao continuar.
+
+O teste host `tools/vita_input_test.c` usa controlador SDL virtual e o próprio
+`vita_platform_poll`. Verifica botões, ambos os sentidos do analógico,
+deadzone, pausa sem repetição, eventos de outro controle, SELECT+START e
+desconexão. Com o código anterior: **30 checks passam / 1 falha**, no caso de
+pressão curta de START; com a correção: **31 passam / 0 falhas**. Isso demonstra
+um defeito de consumo de eventos; **a relação com o comportamento no console
+ainda não foi estabelecida**.
+
+O mapeamento embutido no SDL do SDK coincide com o
+[SDL 2.32.8 oficial](https://github.com/libsdl-org/SDL/blob/release-2.32.8/src/joystick/SDL_gamecontrollerdb.h):
+START é b11 e SELECT é b10. Não há alteração especulativa nesses índices.
+
+Para reproduzir o teste em um host com headers SDL2 e `sdl2-config`:
+
+```bash
+cc -std=c99 -O2 -Wall -Wextra -Werror $(sdl2-config --cflags) \
+  tools/vita_input_test.c platform/vita/platform.c \
+  $(sdl2-config --libs) -lm -o /tmp/vita-input-test
+/tmp/vita-input-test
+```
+
+Nesta máquina foram usados os headers SDL externos já documentados no
+handoff da base. A nova compilação Vita passou com `-Wall -Wextra -Werror`,
+um job e limite de 512 MiB. Pico amostrado: **187,6 MiB**; mínimo de
+aproximadamente 5,6 GiB livres no computador. VPK diagnóstico: **1.149.434
+bytes**, SHA-256 `9f480252fc2633ae5a201f8e15773c30f670fcd882034767bd5df313e8ddc301`.
+Evidência em `../nfsu2-data/reports/vita-start-diagnostic-2026-10-05/`.
+
+Para usar esse diagnóstico, transfira `build/vita/openug2-vita.vpk` **deste
+worktree**, instale a atualização OPENUG200 e pressione START uma vez, aguarde
+dois segundos, depois pressione novamente. Teste SELECT+START e reconecte
+VitaShell. O executável anterior e seus relatórios permanecem preservados
+no worktree principal. **Pausa/saída no console com a correção ainda estão
+pendentes**; não houve publicação em issue.
