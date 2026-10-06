@@ -115,10 +115,12 @@ logs or synthesize visual/input evidence.
 After installing and launching the VPK, perform and record these checks on the
 actual device:
 
-1. Confirm the 240SX is a real car with four visible wheels and expected body
-   and wheel textures; record a device photo or video separately from the
-   generated machine report.
-2. Steer with the left stick and verify the front wheels visibly respond.
+1. Confirm the static 240SX model has the expected body and wheel textures.
+   Orbit the camera through front, side, and rear views and record device
+   photos or video showing all four wheels across those angles.
+2. Move the left stick to orbit/elevate the camera and move the right stick's
+   Y axis to zoom. This viewer has no steering animation or vehicle physics;
+   do not expect the wheels to steer.
 3. Press Start to pause and resume.
 4. Press Triangle to cycle the camera preset.
 5. Press Square to toggle lights.
@@ -127,10 +129,11 @@ actual device:
 
 Record the Vita model, firmware, VitaShell version, whether each step passed,
 and any device capture path in the review notes. A successful `collect`
-command alone remains host-only approval until these observations are
-reviewed. If the current viewer control mapping differs, update this procedure
-to match the implementation before hardware sign-off; do not treat a command
-being accepted as evidence that its visible behavior is correct.
+command reports `DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED`; it does not provide
+visual approval or hardware sign-off. If the current viewer control mapping
+differs, update this procedure to match the implementation before device
+review; do not treat a command being accepted as evidence that its visible
+behavior is correct.
 
 ## Synthetic host tests
 
