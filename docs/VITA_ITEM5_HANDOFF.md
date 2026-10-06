@@ -1,5 +1,11 @@
 # Handoff — engine e integração Vita até o item 5
 
+O reteste com precedência corrigida ainda atingiu timeout no fragment shader.
+A nova variante de materiais para o viewer, sua comparação visual com a
+engine completa e a classificação separada da coleta estão em
+[VITA_CAR_SHADER_PROFILE.md](VITA_CAR_SHADER_PROFILE.md). A aprovação física
+do shader completo continua em aberto.
+
 A quarta coleta confirmou timeout dentro da compilação do fragment shader.
 O Cg recuperado expôs corrupção de precedência no tradutor. A correção e a
 reprodução antes/depois estão em

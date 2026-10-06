@@ -155,6 +155,20 @@ class BundleTests(unittest.TestCase):
                          (mount / "data/openug2/shader-fragment.cg").read_bytes())
         self.assertIn("real-car appearance", report["manual_review_required"])
 
+    def test_static_profile_requires_viewer_probe_and_cannot_approve_full_engine(self):
+        run = "a" * 24
+        build = {"compiled_revision": "fixture", "source_sha256": "b" * 64, "shader_profile": "static_car"}
+        log = good_log(run, build).replace("GPU PROBE engine_program PASS", "GPU PROBE viewer_program PASS")
+        log += "GPU SHADER PROFILE static_car full_engine=deferred\n"
+        report = cb.assess_log(log, run, True, build)
+        self.assertTrue(report["machine_log_pass"])
+        self.assertEqual(report["state"], "DEVICE_STATIC_CAR_LOG_PASS_MANUAL_REVIEW_REQUIRED")
+        self.assertEqual(report["full_engine_validation"], "DEFERRED")
+        self.assertFalse(cb.assess_log(log.replace("viewer_program", "engine_program"), run, True, build)["machine_log_pass"])
+        self.assertFalse(cb.assess_log(log.replace("GPU SHADER PROFILE static_car full_engine=deferred\n", ""), run, True, build)["machine_log_pass"])
+        full_build = {**build, "shader_profile": "full_engine"}
+        self.assertFalse(cb.assess_log(log, run, True, full_build)["machine_log_pass"])
+
     def test_existing_asset_mismatch_preserved_and_vpk_replacement(self):
         bundle = self.prepare()
         mount = self.base / "ux0"

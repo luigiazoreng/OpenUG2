@@ -109,6 +109,8 @@ def read_build_manifest(path, vpk_path, vpk_info):
     required = ("compiled_revision", "source_sha256", "source_status", "vpk_sha256", "eboot_sha256")
     if any(not isinstance(value.get(k), str) or not value[k] for k in required):
         raise ValueError("Build manifest must include compiled_revision, source_sha256, source_status, vpk_sha256, eboot_sha256")
+    if value.get("shader_profile", "full_engine") not in ("full_engine", "static_car"):
+        raise ValueError("Unknown shader profile in build manifest")
     for key in ("source_sha256", "vpk_sha256", "eboot_sha256"):
         if not re.fullmatch(r"[0-9a-f]{64}", value[key]):
             raise ValueError(f"Invalid SHA-256 in build manifest: {key}")
@@ -241,12 +243,18 @@ def assess_log(log, run_id, expected_eboot, expected_build=None):
     ready = re.findall(r"^CAR READY meshes=(\d+) textures=(\d+) wheels=(\d+)\s*$", log, re.M)
     shutdown = re.findall(r"^CAR SHUTDOWN frames=(\d+) status=(\d+)\s*$", log, re.M)
     probe_records = re.findall(r"^GPU PROBE ([A-Za-z0-9_]+) (PASS|FAIL|UNSUPPORTED)(?:\s+(.*))?$", log, re.M)
-    probes = {name: [state for probe, state, _ in probe_records if probe == name] for name in REQUIRED_PROBES}
+    profile = expected_build.get("shader_profile", "full_engine") if expected_build else "full_engine"
+    program_probe = "viewer_program" if profile == "static_car" else "engine_program"
+    required = (program_probe,) + REQUIRED_PROBES[1:]
+    probes = {name: [state for probe, state, _ in probe_records if probe == name] for name in required}
+    profile_lines = re.findall(r"^GPU SHADER PROFILE (.+)$", log, re.M)
+    profile_ok = (profile_lines == ["static_car full_engine=deferred"] if profile == "static_car"
+                  else not profile_lines)
     shader_fail = bool(re.search(r"shader[_ ]fallback\s*=\s*FAIL|shader fallback failed", log, re.I))
     rgba_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
                   for n in ("rgba_alpha", "dxt1_rgba_fallback", "dxt3_rgba_fallback", "dxt5_rgba_fallback"))
     probe_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
-                   for n in REQUIRED_PROBES)
+                   for n in required)
     suite_summaries = {(passed, failed, unsupported) for passed, failed, unsupported, _ in suite}
     elapsed_ok = all(re.fullmatch(r"(?:\d+(?:\.\d*)?|\.\d+)", elapsed)
                      for _, _, _, elapsed in suite)
@@ -263,6 +271,7 @@ def assess_log(log, run_id, expected_eboot, expected_build=None):
                     and builds[0] == (expected_build["compiled_revision"], expected_build["source_sha256"]))
     checks = {
         "fresh_session_id": session == [run_id],
+        "shader_profile_matches_build": profile_ok,
         "compiled_build_identity_matches_sidecar": build_ok,
         "gpu_suite_zero_failures": suite_ok,
         "required_gpu_probes": probe_ok,
@@ -277,12 +286,14 @@ def assess_log(log, run_id, expected_eboot, expected_build=None):
     probe_state = {k: ("FAIL" if "FAIL" in v else "UNSUPPORTED" if "UNSUPPORTED" in v
                        else "PASS" if v else "MISSING") for k, v in probes.items()}
     return {"checks": checks, "probes": probe_state,
+            "shader_profile": profile, "full_engine_validation": "DEFERRED" if profile == "static_car" else "REQUIRES_ALL_CHECKS",
             "gpu_suite": suite[-1] if suite else None, "car_ready": ready[-1] if ready else None,
             "shutdown": shutdown[-1] if shutdown else None,
             "machine_log_pass": machine_pass,
             "manual_review_required": ["real-car appearance", "four wheels", "textures", "camera controls",
                                        "pause/resume", "lights", "colors", "SELECT+START exit"],
-            "state": "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED" if machine_pass else "DEVICE_REVIEW_REQUIRED"}
+            "state": (("DEVICE_STATIC_CAR_LOG_PASS_MANUAL_REVIEW_REQUIRED" if profile == "static_car"
+                       else "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED") if machine_pass else "DEVICE_REVIEW_REQUIRED")}
 
 
 def collect(args):

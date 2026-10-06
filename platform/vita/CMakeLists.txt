@@ -49,7 +49,7 @@ endif()
 
 if(OPENUG2_VITA_CAR_VIEWER)
   add_executable(openug2_vita viewer_main.c startup_guard.c platform.c renderer_vita.c car_scene.c car_viewer.c ../../src/resource.c)
-  target_compile_definitions(openug2_vita PRIVATE OPENUG2_RESOURCE_BUFFERED)
+  target_compile_definitions(openug2_vita PRIVATE OPENUG2_RESOURCE_BUFFERED OPENUG2_VITA_CAR_SHADER=1)
 else()
   add_executable(openug2_vita main.c platform.c renderer_vita.c asset_probe.c asset_job.c)
 endif()
