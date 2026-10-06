@@ -1,7 +1,8 @@
-/* render.h — OpenUG2 Renderer module: GL context-level state (shaders, buffers,
- * textures), the tiny column-major matrix library, the 3x5 bitmap font and the
- * dev PNG screenshot writer. Owns every gl* call that creates GPU objects;
- * main.c only binds/draws through GpuMesh + the RProg uniform handles.
+/* render.h — OpenUG2 renderer helpers: GL-facing shader/buffer/texture
+ * utilities, the tiny column-major matrix library, the 3x5 bitmap font and
+ * the dev PNG screenshot writer. GPU-object creation and release are split
+ * across render.c, main.c, hud.c, world.c and world-resident helpers; main.c
+ * also issues many direct pipeline and draw calls.
  *
  * Also the single home of the GL headers: desktop legacy GL 2.1 + GLSL 120, or
  * OpenGL ES 2.0 + GLSL 100 with -DN2_GLES — every module includes GL via here. */
