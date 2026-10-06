@@ -10,8 +10,10 @@
 
 typedef struct {
     float steering, throttle, brake;
+    float camera_pitch, camera_zoom;
     int nitro_confirm, handbrake, camera_pressed, pause_pressed, confirm_pressed;
     int quit;
+    int handbrake_pressed;
 } VitaInput;
 
 typedef struct {
@@ -26,6 +28,7 @@ typedef struct {
 } VitaPlatform;
 
 void vita_log_open(void);
+int vita_log_open_at(const char *path);
 void vita_log(const char *format, ...);
 void vita_log_close(void);
 int vita_data_root_exists(void);

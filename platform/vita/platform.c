@@ -1,4 +1,5 @@
 #include "platform.h"
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +12,12 @@
 #endif
 
 static FILE *log_file;
+
+int vita_log_open_at(const char *path) {
+    if (log_file) fclose(log_file);
+    log_file = fopen(path, "w");
+    return log_file != NULL;
+}
 
 void vita_log_open(void) {
     log_file = fopen(VITA_DATA_ROOT "/vita-bringup.log", "w");
@@ -151,6 +158,16 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
     else if (steering < -deadzone) steering = (steering + deadzone) / (1.0f - deadzone);
     else steering = 0;
     input->steering = -steering; /* Engine: left is positive. */
+    Sint16 pitch_axis = SDL_GameControllerGetAxis(p->controller, SDL_CONTROLLER_AXIS_LEFTY);
+    Sint16 zoom_axis = SDL_GameControllerGetAxis(p->controller, SDL_CONTROLLER_AXIS_RIGHTY);
+    float pitch = pitch_axis < 0 ? pitch_axis / 32768.0f : pitch_axis / 32767.0f;
+    float zoom = zoom_axis < 0 ? zoom_axis / 32768.0f : zoom_axis / 32767.0f;
+    if (fabsf(pitch) <= deadzone) pitch = 0;
+    else pitch = (pitch > 0 ? pitch-deadzone : pitch+deadzone)/(1-deadzone);
+    if (fabsf(zoom) <= deadzone) zoom = 0;
+    else zoom = (zoom > 0 ? zoom-deadzone : zoom+deadzone)/(1-deadzone);
+    input->camera_pitch = -pitch;
+    input->camera_zoom = zoom;
     Uint32 buttons = 0;
     for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; b++)
         if (SDL_GameControllerGetButton(p->controller, (SDL_GameControllerButton)b)) buttons |= 1u << b;
@@ -163,6 +180,7 @@ void vita_platform_poll(VitaPlatform *p, VitaInput *input) {
     input->brake = HELD(LEFTSHOULDER) ? 1.0f : 0.0f;
     input->nitro_confirm = HELD(A);
     input->handbrake = HELD(X);
+    input->handbrake_pressed = PRESSED(X);
     input->camera_pressed = PRESSED(Y);
     input->confirm_pressed = PRESSED(A);
     input->quit |= HELD(BACK) && HELD(START);
