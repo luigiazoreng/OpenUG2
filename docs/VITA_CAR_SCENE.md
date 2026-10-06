@@ -47,3 +47,11 @@ classifies its four `BRAKELIGHT` category slices as `BRAKELIGHTGLASS` and
 `MOLDINGS`, not as a trusted emissive lens; the harness therefore validates
 lights using the two proven front headlight emitters and still exercises the
 rear camera for full-car visibility.
+
+The viewer caption is built once from `render_font_glyph` into one indexed
+mesh, preserving the engine's 3x5 pixel spacing and 0.85 glyph scale. The
+caption's position/normal/index payload is counted in the 24 MiB GPU budget,
+and the frame issues one caption draw (118 total viewer draws in the retail
+scene). Plastic and metal trim keep an authored texture when one is present;
+those branches clear decal blending so the texture does not become a paint
+overlay.

@@ -168,7 +168,7 @@ static void run_viewer_cycle(const char *root, const char *output, int cycle) {
     }
     /* Both camera views must show the car. Paint and the proven front light
        emitters must affect the projected car; pause changes a background pixel. */
-    assert(visible_front > 1000 && visible_rear > 1000 && stats.draws > 100 && stats.draws < 200);
+    assert(visible_front > 1000 && visible_rear > 1000 && stats.draws == 118);
     assert(paint_changed > 1000 && paint_delta > 100000);
     assert(lights_changed > 100 && light_delta > 10000);
     assert(pause_bg_delta > 40 && pause_changed > 1000 && pause_delta > 100000);
