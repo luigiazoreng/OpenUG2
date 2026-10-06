@@ -57,3 +57,23 @@ o layout, sem aumentar o limite de RAM do build ou mudar a biblioteca.
 O diagnóstico original e seu log de falha são preservados no relatório
 privado. O [empacotador oficial](https://github.com/vitasdk/vita-toolchain/blob/master/src/vita-elf-create/sce-elf.c)
 verifica essa sobreposição antes de acrescentar os metadados ao segmento.
+
+## Recibo do novo pacote
+
+- Código compilado limpo: `6b53e86fa4b494ef0b6be410658f33416bd8fc85`.
+- Fingerprint: `29e868dd66729e633ad358a68342edf6c9086c14a89a8e7d0aed45c335c125af`.
+- VPK: `2da96de57fd807b2f08de8e64a39ff57d479c8eed3ff64202e744000f1c1440c`.
+- eboot: `4e7fa4e1d9322e8f194191f738f78cc58ea032451f1edc5c508674d990aa0e6c`.
+- Sessão: `7d9bdf0d4fda4526a392b562`.
+- Bundle privado: `nfsu2-data/vita/stock-240sx-mip-diagnostics-2026-10-06/ready`.
+- Build fresco: dez unidades C, `-Wall -Wextra -Werror`, zero warnings;
+  SELF/VPK concluídos, CRC e título validados. A folga ELF medida passou
+  de 3.656 para 69.192 bytes, suficiente para os 4.176 bytes SCE.
+- Guard: teto 384 MiB, swap zero, reserva 3.072 MiB; pico 199,1 MiB,
+  mínimo de memória disponível 3.822,4 MiB.
+
+Este recibo documenta build e preparo. A sessão física nova está pendente.
+Reinstalar `ux0:data/openug2/car-viewer.vpk`, executar e reativar o USB
+no VitaShell para coleta. Ainda pode sair controladamente quando os testes
+originais de mipmaps falharem. Não é aprovação do viewer ou do shader
+completo da engine. O commit posterior altera somente documentação.

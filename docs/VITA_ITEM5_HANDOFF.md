@@ -1,3 +1,12 @@
+> Atualização 2026-10-06 — diagnóstico de mipmaps: o log físico da sessão
+> `cee27925449a48f4b9879417` confirmou saída controlada (17 PASS, 2 FAIL,
+> frames=0/status=1), com shader estático e DXT nativo aprovados nos probes.
+> Bundle de diagnóstico `stock-240sx-mip-diagnostics-2026-10-06`, sessão
+> `7d9bdf0d4fda4526a392b562`, compilado de `6b53e86`, acrescenta quatro checks
+> e inspeção de bytes. Host 23/23 nas quatro suites; SDK/VPK passou com
+> pico 199,1 MiB. Ver [VITA_MIP_DIAGNOSTICS.md](VITA_MIP_DIAGNOSTICS.md).
+> Reteste físico pendente; os dois FAIL originais continuam fatais.
+
 # Handoff — engine e integração Vita até o item 5
 
 A sessão do perfil estático compilou o shader e passou DXT nativo. O app
