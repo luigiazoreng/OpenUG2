@@ -1007,10 +1007,12 @@ void write_png(const char *path, int w, int h, const unsigned char *rgb) {
 
 static GLuint compile(GLenum type, const char *src) {
     GLuint s = glCreateShader(type);
+    if (!s) { fprintf(stderr, "renderer: shader allocation failed (type %u)\n", (unsigned)type); return 0; }
     glShaderSource(s, 1, &src, NULL); glCompileShader(s);
     GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if (!ok) { char log[512]; glGetShaderInfoLog(s, 512, NULL, log);
-        fprintf(stderr, "shader: %s\n", log); }
+    if (!ok) { char log[2048] = {0}; glGetShaderInfoLog(s, sizeof log, NULL, log);
+        fprintf(stderr, "renderer: shader compile failed (type %u): %s\n", (unsigned)type, log);
+        glDeleteShader(s); return 0; }
     return s;
 }
 
@@ -1036,6 +1038,11 @@ static int headlight_shadow_init(HeadlightShadows *s) {
         "vec2 enc=fract(clamp(distance/uRange,0.0,0.99999)*vec2(1.0,255.0));"
         "enc.x-=enc.y/255.0;gl_FragColor=vec4(enc,0.0,1.0);}";
     GLuint v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
+    if (!v || !f) {
+        if (v) glDeleteShader(v);
+        if (f) glDeleteShader(f);
+        return 0;
+    }
     s->program=glCreateProgram();glAttachShader(s->program,v);glAttachShader(s->program,f);
     glBindAttribLocation(s->program,0,"aPos");glBindAttribLocation(s->program,1,"aUV");
     glLinkProgram(s->program);glDeleteShader(v);glDeleteShader(f);
@@ -1084,7 +1091,10 @@ int render_headlight_shadows(const RProg *r,HeadlightShadows *s,const N2Batch *b
     GLint program,fbo,rb,viewport[4],active,texture,depthfunc;
     GLfloat clear[4],clear_depth;GLboolean mask[4],depthmask;
     GLboolean depth=glIsEnabled(GL_DEPTH_TEST),blend=glIsEnabled(GL_BLEND),cull=glIsEnabled(GL_CULL_FACE);
-    GLboolean scissor=glIsEnabled(GL_SCISSOR_TEST),dither=glIsEnabled(GL_DITHER);
+    GLboolean scissor=glIsEnabled(GL_SCISSOR_TEST);
+#ifdef GL_DITHER
+    GLboolean dither=glIsEnabled(GL_DITHER);
+#endif
     glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_FRAMEBUFFER_BINDING,&fbo);
     glGetIntegerv(GL_RENDERBUFFER_BINDING,&rb);glGetIntegerv(GL_VIEWPORT,viewport);
     glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glActiveTexture(GL_TEXTURE0);
@@ -1099,7 +1109,10 @@ int render_headlight_shadows(const RProg *r,HeadlightShadows *s,const N2Batch *b
     }
     glBindFramebuffer(GL_FRAMEBUFFER,s->fbo);glViewport(0,0,512,512);
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);glDisable(GL_CULL_FACE);glDisable(GL_SCISSOR_TEST);glDisable(GL_DITHER);
+    glDisable(GL_BLEND);glDisable(GL_CULL_FACE);glDisable(GL_SCISSOR_TEST);
+#ifdef GL_DITHER
+    glDisable(GL_DITHER);
+#endif
 #ifdef N2_GLES
     glClearDepthf(1.0f);
 #else
@@ -1144,7 +1157,9 @@ restore:
     if(blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);
     if(cull)glEnable(GL_CULL_FACE);else glDisable(GL_CULL_FACE);
     if(scissor)glEnable(GL_SCISSOR_TEST);else glDisable(GL_SCISSOR_TEST);
+#ifdef GL_DITHER
     if(dither)glEnable(GL_DITHER);else glDisable(GL_DITHER);
+#endif
     glBindTexture(GL_TEXTURE_2D,(GLuint)texture);
     if(draws>=0) {
         render_uniform_matrix4fv(r->uHeadShadowMVP,2,GL_FALSE,matrices[0]);
@@ -1195,15 +1210,33 @@ void render_model(const RProg *r,const float model[16]) {
 }
 
 RProg render_program(void) {
-    RProg r;
+    RProg r = {0};
+    GLuint vertex = compile(GL_VERTEX_SHADER, VS), fragment = compile(GL_FRAGMENT_SHADER, FS);
+    if (!vertex || !fragment) {
+        if (vertex) glDeleteShader(vertex);
+        if (fragment) glDeleteShader(fragment);
+        return r;
+    }
     r.prog = glCreateProgram();
-    glAttachShader(r.prog, compile(GL_VERTEX_SHADER, VS));
-    glAttachShader(r.prog, compile(GL_FRAGMENT_SHADER, FS));
+    if (!r.prog) {
+        glDeleteShader(vertex); glDeleteShader(fragment);
+        fprintf(stderr, "renderer: program allocation failed\n"); return r;
+    }
+    glAttachShader(r.prog, vertex);
+    glAttachShader(r.prog, fragment);
     glBindAttribLocation(r.prog, 0, "aPos");
     glBindAttribLocation(r.prog, 1, "aUV");
     glBindAttribLocation(r.prog, 2, "aNor");
     glBindAttribLocation(r.prog, 3, "aColor");
-    glLinkProgram(r.prog); render_use_program(r.prog);
+    glLinkProgram(r.prog);
+    glDeleteShader(vertex); glDeleteShader(fragment);
+    GLint linked = 0; glGetProgramiv(r.prog, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        char info[2048] = {0}; glGetProgramInfoLog(r.prog, sizeof info, NULL, info);
+        fprintf(stderr, "renderer: program link failed: %s\n", info);
+        render_delete_program(r.prog); r.prog = 0; return r;
+    }
+    render_use_program(r.prog);
     r.uMVP     = render_uniform_location(r.prog, "uMVP");
     r.uModel   = render_uniform_location(r.prog, "uModel");
     render_model(&r,NULL);
@@ -2096,6 +2129,8 @@ static const unsigned char *glyph3x5(char c) {
 }
 /* Draw an uppercase string at NDC (x,y = top-left), pixel size (px,py). Colour +
    uUnlit/uUseTex are set by the caller; this only sets uMVP and draws pixels. */
+/* Immutable five-row CPU bitmap for batched diagnostic captions. */
+const unsigned char *render_font_glyph(char c) { return glyph3x5(c); }
 void draw_text(GpuMesh *quad, GLint uMVP, const char *s, float x, float y, float px, float py) {
     for (; *s; s++) {
         const unsigned char *g = glyph3x5(*s);

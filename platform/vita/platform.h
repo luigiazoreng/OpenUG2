@@ -22,6 +22,7 @@ typedef struct {
     Uint32 previous_native_buttons;
     int native_input_logged;
     int sdl_ready;
+    Uint32 uniform_program_guard;
 } VitaPlatform;
 
 void vita_log_open(void);
