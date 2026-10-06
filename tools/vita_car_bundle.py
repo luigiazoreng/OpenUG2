@@ -6,13 +6,10 @@ opens game assets from Git and never installs or removes the application.
 """
 import argparse
 import contextlib
-from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path, PurePosixPath
 import re
-import shutil
 import subprocess
 import sys
 import uuid
@@ -34,6 +31,7 @@ VPK_DEVICE = "data/openug2/car-viewer.vpk"
 LOG_REL = "data/openug2/vita-car-viewer.log"
 PROBES = ("engine_program", "framebuffer_depth", "rgba_alpha", "dxt1_rgba_fallback",
           "dxt3_rgba_fallback", "dxt5_rgba_fallback", "mip_sampling", "mip_generation")
+SESSION_DEVICE = "data/openug2/diagnostic-session.txt"
 
 
 def info(path):
@@ -91,20 +89,44 @@ def source_root(path):
     return root
 
 
-def git_identity():
+def tooling_checkout_identity():
+    checkout = Path(__file__).resolve().parents[1]
     try:
-        rev = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True,
-                             text=True, timeout=5).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"], check=True,
-                                    capture_output=True, text=True, timeout=5).stdout.strip())
+        rev = subprocess.run(["git", "rev-parse", "HEAD"], cwd=checkout, check=True,
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=checkout,
+                                    check=True, capture_output=True, text=True, timeout=5).stdout.strip())
         return {"revision": rev, "dirty": dirty}
     except (OSError, subprocess.SubprocessError):
         return {"revision": "unknown", "dirty": None}
 
 
+def read_build_manifest(path, vpk_path, vpk_info):
+    if path is None:
+        return None
+    value = json.loads(Path(path).read_text())
+    required = ("compiled_revision", "source_sha256", "source_status", "vpk_sha256", "eboot_sha256")
+    if any(not isinstance(value.get(k), str) or not value[k] for k in required):
+        raise ValueError("Build manifest must include compiled_revision, source_sha256, source_status, vpk_sha256, eboot_sha256")
+    for key in ("source_sha256", "vpk_sha256", "eboot_sha256"):
+        if not re.fullmatch(r"[0-9a-f]{64}", value[key]):
+            raise ValueError(f"Invalid SHA-256 in build manifest: {key}")
+    if value["vpk_sha256"] != vpk_info["sha256"]:
+        raise ValueError("Build manifest VPK SHA-256 does not match supplied VPK")
+    with zipfile.ZipFile(vpk_path) as archive:
+        eboot_hash = hashlib.sha256()
+        with archive.open("eboot.bin") as stream:
+            while block := stream.read(CHUNK):
+                eboot_hash.update(block)
+    if value["eboot_sha256"] != eboot_hash.hexdigest():
+        raise ValueError("Build manifest eboot SHA-256 does not match supplied VPK")
+    return value
+
+
 def prepare(args):
     root = source_root(args.data_root)
     vpk_info = vita_device.validate_vpk(args.vpk)
+    build_manifest = read_build_manifest(args.build_manifest, args.vpk, vpk_info)
     output = Path(args.output).absolute()
     output.mkdir(parents=True, exist_ok=False)
     data = output / "ready" / "data" / "openug2"
@@ -123,10 +145,19 @@ def prepare(args):
         copied_vpk = copy_stream(args.vpk, vpk_target)
         if copied_vpk != vpk_info:
             raise ValueError("VPK changed while preparing bundle")
+        session_file = data / "diagnostic-session.txt"
+        session_file.write_text(
+            f"CAR SESSION run_id={run_id}\n"
+            "Log marker shader_fallback=FAIL is fatal; absence of that marker is required.\n"
+            "Expected log: VITA_ROOT/" + LOG_REL + "\n")
+        session_info = info(session_file)
         manifest = {
-            "schema": 1, "run_id": run_id, "title_id": TITLE,
-            "build_identity": git_identity(), "source_data_root": str(root),
+            "schema": 2, "run_id": run_id, "title_id": TITLE,
+            "tooling_checkout_identity": tooling_checkout_identity(), "compiled_build_identity": build_manifest,
+            "source_data_root": str(root),
             "assets": assets,
+            "session_config": {"source": str(session_file), "bundle_path": "data/openug2/diagnostic-session.txt",
+                               "device_path": SESSION_DEVICE, "run_id": run_id, **session_info},
             "vpk": {"source": str(Path(args.vpk).resolve()), "bundle_path": "data/" + VPK_REL,
                     "device_path": VPK_DEVICE,
                     **vpk_info},
@@ -135,10 +166,6 @@ def prepare(args):
             "state": "PREPARED_DEVICE_INSTALL_AND_RUN_PENDING",
         }
         (output / "ready" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        (data / "diagnostic-session.txt").write_text(
-            f"CAR SESSION run_id={run_id}\n"
-            "Log marker shader_fallback=FAIL is fatal; absence of that marker is required.\n"
-            "Expected log: VITA_ROOT/" + LOG_REL + "\n")
         print(f"BUNDLE={output / 'ready'}\nRUN_ID={run_id}\nVPK={data / 'openug2-vita.vpk'}")
     except Exception:
         # Keep the failed, uniquely named output for inspection; never erase user data.
@@ -149,11 +176,13 @@ def load_bundle(path):
     root = Path(path).resolve(strict=True)
     manifest_path = root / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get("schema") != 1 or manifest.get("title_id") != TITLE:
+    if manifest.get("schema") != 2 or manifest.get("title_id") != TITLE:
         raise ValueError("Unrecognized bundle manifest")
     if not re.fullmatch(r"[0-9a-f]{24}", manifest.get("run_id", "")):
         raise ValueError("Invalid bundle run_id")
-    for record in manifest["assets"] + [manifest["vpk"]]:
+    if manifest.get("session_config", {}).get("run_id") != manifest["run_id"]:
+        raise ValueError("Session configuration run_id does not match bundle")
+    for record in manifest["assets"] + [manifest["vpk"], manifest["session_config"]]:
         local_rel = record.get("bundle_path", record["device_path"]).removeprefix("data/")
         local = under(root / "data", local_rel)
         if info(local) != {k: record[k] for k in ("bytes", "sha256")}:
@@ -187,18 +216,17 @@ def deploy(args):
             else:
                 usb.put_new(bundle / "data" / record["device_path"].removeprefix("data/"),
                             record["device_path"])
-        # The canonical viewer VPK is the one explicitly replaceable artifact.
-        vpk = manifest["vpk"]
-        target = usb.path(vpk["device_path"])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        staged = target.with_name(target.name + ".partial-" + uuid.uuid4().hex)
-        try:
-            local = bundle / vpk["bundle_path"]
-            copy_stream(local, staged)
-            staged.replace(target)
-        finally:
-            staged.unlink(missing_ok=True)
-        for record in manifest["assets"] + [vpk]:
+        # Only the canonical viewer VPK and generated session config may be replaced.
+        for replaceable in (manifest["vpk"], manifest["session_config"]):
+            target = usb.path(replaceable["device_path"])
+            target.parent.mkdir(parents=True, exist_ok=True)
+            staged = target.with_name(target.name + ".partial-" + uuid.uuid4().hex)
+            try:
+                copy_stream(bundle / replaceable["bundle_path"], staged)
+                staged.replace(target)
+            finally:
+                staged.unlink(missing_ok=True)
+        for record in manifest["assets"] + [manifest["vpk"], manifest["session_config"]]:
             actual = usb.path(record["device_path"])
             if info(actual) != {k: record[k] for k in ("bytes", "sha256")}:
                 raise ValueError(f"Device read-back mismatch: {record['device_path']}")
@@ -207,22 +235,30 @@ def deploy(args):
 
 def assess_log(log, run_id, expected_eboot):
     session = re.findall(r"^CAR SESSION run_id=([0-9a-f]{24})\s*$", log, re.M)
-    suite = re.findall(r"^GPU SUITE passed=(\d+) failed=(\d+) unsupported=(\d+)\s*$", log, re.M)
+    suite = re.findall(r"^GPU SUITE passed=(\d+) failed=(\d+) unsupported=(\d+) elapsed_ms=([^\s]+)\s*$", log, re.M)
     ready = re.findall(r"^CAR READY meshes=(\d+) textures=(\d+) wheels=(\d+)\s*$", log, re.M)
     shutdown = re.findall(r"^CAR SHUTDOWN frames=(\d+) status=(\d+)\s*$", log, re.M)
-    probes = {name: (re.findall(rf"^{re.escape(name)}=(PASS|FAIL|UNSUPPORTED)\s*$", log, re.M))
-              for name in PROBES}
+    probe_records = re.findall(r"^GPU PROBE ([A-Za-z0-9_]+) (PASS|FAIL|UNSUPPORTED)(?:\s+(.*))?$", log, re.M)
+    probes = {name: [state for probe, state, _ in probe_records if probe == name] for name in PROBES}
     shader_fail = bool(re.search(r"shader[_ ]fallback\s*=\s*FAIL|shader fallback failed", log, re.I))
-    rgba_ok = all(probes[n] and probes[n][-1] == "PASS"
+    rgba_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
                   for n in ("rgba_alpha", "dxt1_rgba_fallback", "dxt3_rgba_fallback", "dxt5_rgba_fallback"))
-    probe_ok = all(probes[n] and probes[n][-1] == "PASS" for n in PROBES)
-    suite_ok = len(suite) == 1 and int(suite[0][1]) == 0
-    counts_ok = (len(ready) == 1 and all(int(v) > 0 for v in ready[0]))
+    probe_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
+                   for n in PROBES)
+    suite_summaries = {(passed, failed, unsupported) for passed, failed, unsupported, _ in suite}
+    elapsed_ok = all(re.fullmatch(r"(?:\d+(?:\.\d*)?|\.\d+)", elapsed)
+                     for _, _, _, elapsed in suite)
+    suite_ok = (bool(suite) and len(suite_summaries) == 1 and elapsed_ok
+                and all(int(passed) > 0 and int(failed) == 0
+                        for passed, failed, _, _ in suite))
+    counts_ok = (len(ready) == 1 and int(ready[0][0]) > 0 and int(ready[0][1]) > 0
+                 and int(ready[0][2]) == 4)
     shutdown_ok = len(shutdown) == 1 and int(shutdown[0][0]) > 0 and shutdown[0][1] == "0"
     checks = {
         "fresh_session_id": session == [run_id],
         "gpu_suite_zero_failures": suite_ok,
         "required_gpu_probes": probe_ok,
+        "no_gpu_probe_failures": not any(state == "FAIL" for _, state, _ in probe_records),
         "rgba_fallbacks_passed": rgba_ok,
         "no_shader_fallback_failure": not shader_fail,
         "car_ready_counts_nonzero": counts_ok,
@@ -230,13 +266,15 @@ def assess_log(log, run_id, expected_eboot):
         "installed_eboot_matches_bundle": expected_eboot,
     }
     machine_pass = all(checks.values())
-    return {"checks": checks, "probes": {k: (v[-1] if v else "MISSING") for k, v in probes.items()},
+    probe_state = {k: ("FAIL" if "FAIL" in v else "UNSUPPORTED" if "UNSUPPORTED" in v
+                       else "PASS" if v else "MISSING") for k, v in probes.items()}
+    return {"checks": checks, "probes": probe_state,
             "gpu_suite": suite[-1] if suite else None, "car_ready": ready[-1] if ready else None,
             "shutdown": shutdown[-1] if shutdown else None,
             "machine_log_pass": machine_pass,
             "manual_review_required": ["real-car appearance", "four wheels", "textures", "camera controls",
                                        "pause/resume", "lights", "colors", "SELECT+START exit"],
-            "state": "APPROVED_HOST_ONLY" if machine_pass else "DEVICE_REVIEW_REQUIRED"}
+            "state": "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED" if machine_pass else "DEVICE_REVIEW_REQUIRED"}
 
 
 def collect(args):
@@ -250,6 +288,8 @@ def collect(args):
             raise ValueError(f"Device log missing: {LOG_REL}")
         installed = output / "installed-eboot.bin"
         eboot_info = fetch_installed_eboot(usb, installed)
+        config = manifest["session_config"]
+        current_config = usb.fetch(config["device_path"], output / "diagnostic-session.txt", MAX_FILE)
     with zipfile.ZipFile(bundle / "data" / VPK_REL) as archive:
         expected_eboot = hashlib.sha256()
         eboot_bytes = 0
@@ -264,8 +304,11 @@ def collect(args):
         raise ValueError("Stale or mismatched CAR SESSION run_id; refusing to associate this log")
     if not eboot_matches:
         raise ValueError("Installed app/OPENUG200/eboot.bin differs from the bundle VPK")
+    if current_config != {k: config[k] for k in ("bytes", "sha256")}:
+        raise ValueError("Current diagnostic-session.txt does not match this prepared bundle")
     report.update({"schema": 1, "run_id": manifest["run_id"], "log": log_info,
                    "installed_eboot": eboot_info, "bundle_vpk": manifest["vpk"],
+                   "session_config": config,
                    "manual_observations": "not supplied; no visual/input evidence inferred"})
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"{report['state']}\n{output / 'result.json'}")
@@ -278,6 +321,8 @@ def main(argv=None):
     p = subs.add_parser("prepare", help="create a new isolated bundle from three assets and a VPK")
     p.add_argument("--data-root", required=True, type=Path)
     p.add_argument("--vpk", required=True, type=Path)
+    p.add_argument("--build-manifest", type=Path,
+                   help="compiled_revision/source_sha256/source_status/vpk_sha256/eboot_sha256 JSON sidecar")
     p.add_argument("--output", required=True, type=Path, help="new, nonexistent output directory")
     p.set_defaults(func=prepare)
     p = subs.add_parser("deploy", help="stage bundle assets and canonical VPK on a mounted ux0")

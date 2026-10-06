@@ -13,6 +13,7 @@ Prepare a new output directory for each attempt:
 python3 tools/vita_car_bundle.py prepare \
   --data-root /path/to/retail-data \
   --vpk build/vita-car-viewer.vpk \
+  --build-manifest build/vita-car-viewer-build.json \
   --output /path/to/new/car-viewer-bundle-01
 ```
 
@@ -20,9 +21,15 @@ The command creates `car-viewer-bundle-01/ready/` with the three assets under
 `data/openug2/`, the VPK at `data/openug2/openug2-vita.vpk`,
 `data/openug2/diagnostic-session.txt`, and `manifest.json`. The manifest records
 a fresh 24-hex-character run ID, source asset paths and SHA-256/size, VPK hash,
-Git revision/dirty state as build identity, required log path, and expected
-diagnostic markers. The VPK is only staged; it is never installed by this
-command.
+required log path, and expected diagnostic markers. The current checkout's
+revision/dirty state is recorded only as `tooling_checkout_identity`; it is
+not represented as the compiled VPK identity. If `--build-manifest` is
+provided, its compiled identity is recorded separately and both its VPK SHA
+and embedded eboot SHA must match the supplied VPK. The sidecar JSON contract
+is `compiled_revision`, `source_sha256`, `source_status`, `vpk_sha256`, and
+`eboot_sha256`. The VPK is only staged; it is never installed by this command.
+The generated `diagnostic-session.txt` is a first-class, separately hashed
+configuration record in the manifest, not a retail asset.
 
 Connect the Vita in USB mode and mount its `ux0:` volume on the host. Deploy
 only from a prepared `ready/` directory:
@@ -37,9 +44,12 @@ The tool refuses symlinked or escaping paths. It preserves an existing asset
 when the SHA-256 and size match, and refuses to overwrite an asset whose
 content differs. It writes the viewer VPK only to the canonical
 `ux0:data/openug2/car-viewer.vpk` path using a temporary file and atomic
-replacement, then streams each staged asset and the canonical VPK back to the
-host and compares hashes. It does not touch `ux0:app/OPENUG200` or uninstall
-an application.
+replacement. It also atomically replaces only the generated
+`ux0:data/openug2/diagnostic-session.txt` so every deployment receives the
+new bundle run ID. A second bundle may update this config and VPK while all
+three car assets remain guarded against replacement. It then streams all
+staged assets, the VPK, and session config back to the host and compares
+hashes. It does not touch `ux0:app/OPENUG200` or uninstall an application.
 Install the staged VPK manually with VitaShell, then launch the viewer.
 
 The expected log is `ux0:data/openug2/vita-car-viewer.log`, copied to the host
@@ -65,26 +75,31 @@ final status for every probe:
 
 ```text
 CAR SESSION run_id=<24 lowercase hex characters>
-GPU SUITE passed=<N> failed=0 unsupported=<K>
-engine_program=PASS
-framebuffer_depth=PASS
-rgba_alpha=PASS
-dxt1_rgba_fallback=PASS
-dxt3_rgba_fallback=PASS
-dxt5_rgba_fallback=PASS
-mip_sampling=PASS
-mip_generation=PASS
+GPU SUITE passed=<N> failed=0 unsupported=<K> elapsed_ms=<finite-number>
+GPU PROBE engine_program PASS linked=1
+GPU PROBE framebuffer_depth PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE rgba_alpha PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE dxt1_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE dxt3_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE dxt5_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE mip_sampling PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE mip_generation PASS rgba=1 expected_rgb=1 error=0.0
 CAR READY meshes=<positive> textures=<positive> wheels=<positive>
 CAR SHUTDOWN frames=<positive> status=0
 ```
 
-The parser requires every named probe to be `PASS`. Native DXT compression may
-be unsupported if all three RGBA fallback probes pass. A logged
+Probe key-value details after the state are retained as flexible log text; the
+parser checks exact marker names/states and accepts diagnostic suffix fields.
+Any required-probe `FAIL` or `UNSUPPORTED` at any stage fails the check. GPU
+suite records may repeat only when their pass/fail/unsupported counts agree;
+each must have finite elapsed time and zero failures. Native DXT compression
+may be unsupported if all three RGBA fallback probes pass. A logged
 `shader_fallback=FAIL` or `shader fallback failed` is fatal. A successful
-machine report is `APPROVED_HOST_ONLY`; that means the bundle, installed
-executable, and machine-readable run evidence agree. It does not claim that
-the car looked correct or that controls worked. Missing or failing machine
-evidence yields `DEVICE_REVIEW_REQUIRED`. `result.json` explicitly lists the
+device log report is `DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED`; that means the
+bundle, installed executable, session config, and machine-readable run
+evidence agree. It does not claim that the car looked correct or that controls
+worked. Missing or failing machine evidence yields `DEVICE_REVIEW_REQUIRED`.
+`result.json` explicitly lists the
 manual observations still required; this collector does not infer them from
 logs or synthesize visual/input evidence.
 
@@ -123,5 +138,7 @@ The tests use temporary files and a fake USB root. They cover VPK validation,
 exclusive output paths, streaming size limits, traversal and symlink refusal,
 asset mismatch preservation, VPK staging/replacement, readback, valid log
 collection, stale run IDs, shader fallback failure, required probe failure,
-and installed executable drift. They do not contact a Vita, compile the
-engine, or perform device/rendering approval.
+installed executable drift, session config deployment/currentness, second
+bundle run-ID replacement, probe-suite duplicate handling, and build-manifest
+hash validation. They do not contact a Vita, compile the engine, or perform
+device/rendering approval.

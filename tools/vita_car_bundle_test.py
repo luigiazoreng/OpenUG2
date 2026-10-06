@@ -45,8 +45,12 @@ class FakeUSB(vita_device.USB):
 
 
 def good_log(run_id):
-    return (f"CAR SESSION run_id={run_id}\nGPU SUITE passed=8 failed=0 unsupported=0\n"
-            + "\n".join(f"{name}=PASS" for name in cb.PROBES)
+    probe_lines = []
+    for name in cb.PROBES:
+        detail = "linked=1" if name == "engine_program" else "rgba=1 expected_rgb=1 error=0.0"
+        probe_lines.append(f"GPU PROBE {name} PASS {detail}")
+    return (f"CAR SESSION run_id={run_id}\nGPU SUITE passed=8 failed=0 unsupported=0 elapsed_ms=2.50\n"
+            + "\n".join(probe_lines)
             + "\nCAR READY meshes=31 textures=12 wheels=4\nCAR SHUTDOWN frames=20 status=0\n")
 
 
@@ -80,6 +84,10 @@ class BundleTests(unittest.TestCase):
         self.assertEqual(len(manifest["assets"]), 3)
         self.assertIn("CAR SESSION run_id=" + manifest["run_id"],
                       (bundle / "data/openug2/diagnostic-session.txt").read_text())
+        config = manifest["session_config"]
+        self.assertEqual(config["run_id"], manifest["run_id"])
+        self.assertEqual(cb.info(bundle / config["bundle_path"]),
+                         {k: config[k] for k in ("bytes", "sha256")})
         self.assertEqual(cb.load_bundle(bundle)[1]["title_id"], cb.TITLE)
         self.assertEqual(cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
                                   "--output", str(bundle.parent)]), 2)
@@ -125,7 +133,7 @@ class BundleTests(unittest.TestCase):
             self.assertEqual(cb.main(["collect", "--bundle", str(bundle), "--usb-root", str(mount),
                                       "--output", str(out)]), 0)
         report = json.loads((out / "result.json").read_text())
-        self.assertEqual(report["state"], "APPROVED_HOST_ONLY")
+        self.assertEqual(report["state"], "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED")
         self.assertTrue(report["checks"]["installed_eboot_matches_bundle"])
         self.assertIn("real-car appearance", report["manual_review_required"])
 
@@ -150,7 +158,7 @@ class BundleTests(unittest.TestCase):
 
     def test_missing_required_probe_and_installed_hash_mismatch(self):
         run = "a" * 24
-        log = good_log(run).replace("mip_generation=PASS\n", "")
+        log = good_log(run).replace("GPU PROBE mip_generation PASS rgba=1 expected_rgb=1 error=0.0\n", "")
         report = cb.assess_log(log, run, False)
         self.assertFalse(report["checks"]["required_gpu_probes"])
         self.assertFalse(report["checks"]["installed_eboot_matches_bundle"])
@@ -175,6 +183,62 @@ class BundleTests(unittest.TestCase):
             installed.write_bytes(eboot + b"changed")
             self.assertEqual(cb.main(["collect", "--bundle", str(bundle), "--usb-root", str(mount),
                                       "--output", str(self.base / "drift")]), 2)
+
+    def test_second_bundle_redeploy_updates_session_only(self):
+        first = self.prepare("bundle-one")
+        second = self.prepare("bundle-two")
+        first_manifest = json.loads((first / "manifest.json").read_text())
+        second_manifest = json.loads((second / "manifest.json").read_text())
+        self.assertNotEqual(first_manifest["run_id"], second_manifest["run_id"])
+        mount = self.base / "ux0"
+        mount.mkdir()
+        (mount / "app").mkdir()
+        with mock.patch.object(vita_device, "USB", FakeUSB):
+            self.assertEqual(cb.main(["deploy", "--bundle", str(first), "--usb-root", str(mount)]), 0)
+            asset_path = mount / "data/openug2/CARS/240SX/GEOMETRY.BIN"
+            asset_before = asset_path.read_bytes()
+            self.assertEqual(cb.main(["deploy", "--bundle", str(second), "--usb-root", str(mount)]), 0)
+        config = mount / cb.SESSION_DEVICE
+        self.assertIn(second_manifest["run_id"], config.read_text())
+        self.assertEqual(cb.info(config), {k: second_manifest["session_config"][k]
+                                           for k in ("bytes", "sha256")})
+        self.assertEqual(asset_path.read_bytes(), asset_before)
+        (mount / "app/OPENUG200").mkdir(parents=True)
+        with zipfile.ZipFile(first / "data" / cb.VPK_REL) as archive:
+            (mount / "app/OPENUG200/eboot.bin").write_bytes(archive.read("eboot.bin"))
+        (mount / cb.LOG_REL).parent.mkdir(parents=True, exist_ok=True)
+        (mount / cb.LOG_REL).write_text(good_log(first_manifest["run_id"]))
+        with mock.patch.object(vita_device, "USB", FakeUSB):
+            self.assertEqual(cb.main(["collect", "--bundle", str(first), "--usb-root", str(mount),
+                                      "--output", str(self.base / "old-config")]), 2)
+
+    def test_build_manifest_matches_vpk_and_eboot(self):
+        with zipfile.ZipFile(self.vpk) as archive:
+            eboot_sha = hashlib.sha256(archive.read("eboot.bin")).hexdigest()
+        build = {"compiled_revision": "abc123", "source_sha256": "a" * 64,
+                 "source_status": "clean", "vpk_sha256": cb.info(self.vpk)["sha256"],
+                 "eboot_sha256": eboot_sha}
+        manifest_path = self.base / "build.json"
+        manifest_path.write_text(json.dumps(build))
+        out = self.base / "build-bundle"
+        self.assertEqual(cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
+                                  "--build-manifest", str(manifest_path), "--output", str(out)]), 0)
+        prepared = json.loads((out / "ready/manifest.json").read_text())
+        self.assertEqual(prepared["compiled_build_identity"], build)
+        build["vpk_sha256"] = "0" * 64
+        manifest_path.write_text(json.dumps(build))
+        self.assertEqual(cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
+                                  "--build-manifest", str(manifest_path),
+                                  "--output", str(self.base / "build-bundle-bad")]), 2)
+
+    def test_conflicting_suite_duplicate_or_any_probe_failure_rejected(self):
+        run = "a" * 24
+        log = good_log(run) + "GPU SUITE passed=8 failed=1 unsupported=0 elapsed_ms=3\n"
+        self.assertFalse(cb.assess_log(log, run, True)["checks"]["gpu_suite_zero_failures"])
+        log = good_log(run).replace("GPU PROBE mip_sampling PASS", "GPU PROBE mip_sampling FAIL")
+        self.assertFalse(cb.assess_log(log, run, True)["checks"]["required_gpu_probes"])
+        unknown_failure = cb.assess_log(good_log(run) + "GPU PROBE optional_future_probe FAIL reason=bad\n", run, True)
+        self.assertFalse(unknown_failure["checks"]["no_gpu_probe_failures"])
 
 
 if __name__ == "__main__":
