@@ -8,6 +8,9 @@ debug and GLES builds, 17 synthetic targets and three CLI targets pass with
 zero warnings. L4RA/L4RB measurements and captures match the preserved upstream
 reference. Physical Vita execution and issue #7's second machine remain
 separate acceptance checks; this result does not certify either.
+The later homologation review also fixed failed texture-decode output state.
+Final approved code is `addbcbe`; see the last section and
+[REVIEW_HANDOFF.md](REVIEW_HANDOFF.md) for the independent-review handoff.
 
 ## Provenance and isolation
 
@@ -307,3 +310,45 @@ This completes host validation of the pinned development integration plus
 the two focused fixes. The original Vita and issue #7 branches retain their
 previous commits and evidence. Issue #14 is the next queue item and remains
 unstarted. No public comment or PR accompanies this validation.
+
+## Homologation review and final handoff
+
+Review found that `n2_tpk_decode` returned failure with a freed RGB pointer and
+nonempty metadata after rejecting a candidate. The original comment promised
+defined output on both paths. `d2c92e6` on `fix-compiler-warnings`, integrated as
+`addbcbe`, now clears all fields on final failure. The new DXT/P8 output checks
+fail against the previous implementation (359 passed, two failed) and pass
+with the fix (361 passed, zero failed). The complete parser suite also passes
+ASan/UBSan with leak detection. Successful decoding remains unchanged.
+
+The final code revision is
+`addbcbe2a8d3ec6911004fad418443f96c9ebe1f`. The full normal, debug and GLES builds
+were repeated with warnings treated as errors; all 17 synthetic and three CLI
+targets pass without warnings. Physics/world-instance ARM compilation and the
+isolated Vita VPK pass again. The package CRC/contents check passes with only
+`eboot.bin` and `sce_sys/param.sfo` (1148702 bytes).
+
+L4RA/L4RB counts and both PNG hashes still match the preserved upstream
+reference at the frozen poses. Input fingerprints match. All 121 historical
+coverage files, the issue #7 branch/executable and original Vita branch were
+verified unchanged again. The working binary is the final normal profile.
+The API inventory now reproduces from `addbcbe`; API-name counts and Vita
+blockers remain unchanged.
+
+The guarded final build/test phases sampled at most 462.7 MiB, with at least
+8261.9 MiB host available memory. The real-data scope sampled 1125.3 MiB;
+maximum observed process-group RSS was 596.1 MiB, and available host memory
+stayed above 7857.2 MiB. The 4096 MiB reserve and prior kernel/RSS/swap/timeout
+controls were retained. These are sampled observations.
+
+Final report and reproduction logs:
+
+```text
+/home/luigi/Documents/luigi/nfsu2-data/reports/homologation-review-2026-10-05/
+```
+
+`homologation.json` records **APPROVED_HOST_ONLY**, source/binary hashes, results,
+preservation checks and remaining acceptance work. Independent review requested
+by the user is pending; physical Vita execution/performance and the second
+machine for #7 are also pending. No issue comment or PR is published.
+Issue #14 remains unstarted while this handoff is reviewed.

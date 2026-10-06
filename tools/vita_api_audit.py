@@ -12,7 +12,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = "622a1996cbb982fe81fb3afe90572dccb716c242"
+BASE = "addbcbe2a8d3ec6911004fad418443f96c9ebe1f"
 LIBC = set("""
 fopen fclose fread fwrite fseek ftell fflush printf fprintf sprintf snprintf
 puts perror sscanf atoi atof strtol strtoul strtof strtod getenv exit abort

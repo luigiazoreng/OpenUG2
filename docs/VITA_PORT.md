@@ -14,7 +14,8 @@ documented in [ENGINE_WORKSTREAMS.md](ENGINE_WORKSTREAMS.md#branch-and-integrati
 Current integration validation is recorded in
 [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md); separate traffic and
 warning fixes complete host validation of this baseline. The source inventory
-now audits local integration `622a199`, including those fixes. Physical Vita
+now audits local integration `addbcbe`, including those fixes and the failed
+texture-decode output cleanup. Physical Vita
 acceptance remains pending. The initial bring-up
 measurements below refer to `84ab8b3ff59bdbfad78a0bda24ac29dd52af9fc1`.
 
@@ -28,7 +29,8 @@ is an isolated platform executable; it does not claim that milestone.
 The [complete API inventory](VITA_API_INVENTORY.md) records API, file, owning
 function, source lines, Vita support, substitution and blocking status.
 Regenerate it with `python3 tools/vita_api_audit.py`. It is frozen against the
-upstream SHA, so adding this bootstrap cannot change the audited engine list.
+recorded engine revision, so adding this bootstrap cannot change the audited
+engine list.
 It removes comments/literals and separately captures dynamically loaded GL
 names. It includes conditional diagnostics inside production engine files;
 it is a source superset, not a preprocessed list of calls executed each frame.

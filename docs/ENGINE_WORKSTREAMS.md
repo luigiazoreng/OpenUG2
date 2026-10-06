@@ -20,6 +20,8 @@ all three build variants and the selected regressions pass without warnings,
 with matching L4RA/L4RB counts and captures. Evidence is documented in
 [DEVELOPMENT_INTEGRATION.md](DEVELOPMENT_INTEGRATION.md). Physical Vita execution
 and issue #7's second machine remain separate acceptance checks.
+The host homologation handoff is in [REVIEW_HANDOFF.md](REVIEW_HANDOFF.md).
+Issue #14 awaits the independent review requested by the user.
 Update that baseline deliberately, after reviewing the upstream changes and
 passing the relevant builds and regressions. Record the new SHA and refresh
 the portability inventory when the baseline changes.
