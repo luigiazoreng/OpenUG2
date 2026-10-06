@@ -35,6 +35,8 @@ if(NOT OPENUG2_SDL_HAS_VITAGL)
 endif()
 
 option(OPENUG2_VITA_PROFILE "Log bring-up diagnostics once per second" ON)
+option(OPENUG2_VITA_GPU_PROBES "Run production shader and synthetic GPU probes" OFF)
+set(OPENUG2_VITAGL_LIBRARY "" CACHE FILEPATH "Optional pinned vitaGL archive built with SAFE_UNIFORMS=1")
 set(OPENUG2_VITA_TITLEID "OPENUG200" CACHE STRING "Nine-character development title ID")
 string(LENGTH "${OPENUG2_VITA_TITLEID}" TITLEID_LENGTH)
 if(NOT TITLEID_LENGTH EQUAL 9 OR NOT OPENUG2_VITA_TITLEID MATCHES "^[A-Z0-9]+$")
@@ -46,7 +48,25 @@ set_target_properties(openug2_vita PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED 
   LINKER_LANGUAGE CXX) # vitaGL's GLSL translator is C++; engine sources stay C.
 target_compile_options(openug2_vita PRIVATE -Wall -Wextra -Wno-unused-function)
 target_compile_definitions(openug2_vita PRIVATE OPENUG2_VITA
-  OPENUG2_VITA_PROFILE=$<BOOL:${OPENUG2_VITA_PROFILE}>)
+  OPENUG2_VITA_PROFILE=$<BOOL:${OPENUG2_VITA_PROFILE}>
+  OPENUG2_VITA_GPU_PROBES=$<BOOL:${OPENUG2_VITA_GPU_PROBES}>)
+if(OPENUG2_VITA_GPU_PROBES)
+  target_sources(openug2_vita PRIVATE gpu_probe.c ../../src/render.c ../../src/render_uniform.c)
+  target_compile_definitions(openug2_vita PRIVATE N2_GLES OPENUG2_GL_HEADER="vitaGL.h")
+endif()
+if(OPENUG2_VITAGL_LIBRARY)
+  if(NOT EXISTS "${OPENUG2_VITAGL_LIBRARY}")
+    message(FATAL_ERROR "OPENUG2_VITAGL_LIBRARY archive does not exist")
+  endif()
+  get_filename_component(OPENUG2_VITAGL_DIRECTORY "${OPENUG2_VITAGL_LIBRARY}" DIRECTORY)
+  get_filename_component(OPENUG2_VITAGL_FILENAME "${OPENUG2_VITAGL_LIBRARY}" NAME)
+  if(NOT OPENUG2_VITAGL_FILENAME STREQUAL "libvitaGL.a")
+    message(FATAL_ERROR "OPENUG2_VITAGL_LIBRARY must name libvitaGL.a so SDL resolves the same archive")
+  endif()
+  # SDL's imported target also links -lvitaGL. Resolve both references through
+  # the same archive, without changing the installed SDK package.
+  target_link_directories(openug2_vita BEFORE PRIVATE "${OPENUG2_VITAGL_DIRECTORY}")
+endif()
 target_include_directories(openug2_vita SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../src")
 # SDL's exported target carries its GXM/audio/input/system stubs; these two
 # dependencies complete the runtime shader compiler's static-library chain.
