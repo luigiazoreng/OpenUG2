@@ -29,8 +29,9 @@ ASSETS = (
 VPK_REL = "openug2/openug2-vita.vpk"
 VPK_DEVICE = "data/openug2/car-viewer.vpk"
 LOG_REL = "data/openug2/vita-car-viewer.log"
-PROBES = ("engine_program", "framebuffer_depth", "rgba_alpha", "dxt1_rgba_fallback",
-          "dxt3_rgba_fallback", "dxt5_rgba_fallback", "mip_sampling", "mip_generation")
+REQUIRED_PROBES = ("engine_program", "framebuffer_depth", "rgba_alpha", "dxt1_rgba_fallback",
+          "dxt3_rgba_fallback", "dxt5_rgba_fallback", "dxt1_cutout_rgba",
+          "uniform_arrays", "uniform_array_element", "mip_sampling", "mip_generation")
 SESSION_DEVICE = "data/openug2/diagnostic-session.txt"
 
 
@@ -162,7 +163,7 @@ def prepare(args):
                     "device_path": VPK_DEVICE,
                     **vpk_info},
             "expected_log": "VITA_ROOT/" + LOG_REL,
-            "expected_markers": {"shader_fallback": "FAIL", "gpu_probes": list(PROBES)},
+            "expected_markers": {"shader_fallback": "FAIL", "gpu_probes": list(REQUIRED_PROBES)},
             "state": "PREPARED_DEVICE_INSTALL_AND_RUN_PENDING",
         }
         (output / "ready" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
@@ -233,18 +234,19 @@ def deploy(args):
     print(f"DEPLOYED run_id={manifest['run_id']} title={TITLE}; install ux0:/data/openug2/car-viewer.vpk with VitaShell")
 
 
-def assess_log(log, run_id, expected_eboot):
+def assess_log(log, run_id, expected_eboot, expected_build=None):
     session = re.findall(r"^CAR SESSION run_id=([0-9a-f]{24})\s*$", log, re.M)
+    builds = re.findall(r"^CAR BUILD revision=([^\s]+) source_sha256=([0-9a-f]{64})\s*$", log, re.M)
     suite = re.findall(r"^GPU SUITE passed=(\d+) failed=(\d+) unsupported=(\d+) elapsed_ms=([^\s]+)\s*$", log, re.M)
     ready = re.findall(r"^CAR READY meshes=(\d+) textures=(\d+) wheels=(\d+)\s*$", log, re.M)
     shutdown = re.findall(r"^CAR SHUTDOWN frames=(\d+) status=(\d+)\s*$", log, re.M)
     probe_records = re.findall(r"^GPU PROBE ([A-Za-z0-9_]+) (PASS|FAIL|UNSUPPORTED)(?:\s+(.*))?$", log, re.M)
-    probes = {name: [state for probe, state, _ in probe_records if probe == name] for name in PROBES}
+    probes = {name: [state for probe, state, _ in probe_records if probe == name] for name in REQUIRED_PROBES}
     shader_fail = bool(re.search(r"shader[_ ]fallback\s*=\s*FAIL|shader fallback failed", log, re.I))
     rgba_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
                   for n in ("rgba_alpha", "dxt1_rgba_fallback", "dxt3_rgba_fallback", "dxt5_rgba_fallback"))
     probe_ok = all(probes[n] and "FAIL" not in probes[n] and "UNSUPPORTED" not in probes[n]
-                   for n in PROBES)
+                   for n in REQUIRED_PROBES)
     suite_summaries = {(passed, failed, unsupported) for passed, failed, unsupported, _ in suite}
     elapsed_ok = all(re.fullmatch(r"(?:\d+(?:\.\d*)?|\.\d+)", elapsed)
                      for _, _, _, elapsed in suite)
@@ -254,8 +256,14 @@ def assess_log(log, run_id, expected_eboot):
     counts_ok = (len(ready) == 1 and int(ready[0][0]) > 0 and int(ready[0][1]) > 0
                  and int(ready[0][2]) == 4)
     shutdown_ok = len(shutdown) == 1 and int(shutdown[0][0]) > 0 and shutdown[0][1] == "0"
+    if expected_build is None:
+        build_ok = True
+    else:
+        build_ok = (len(builds) == 1
+                    and builds[0] == (expected_build["compiled_revision"], expected_build["source_sha256"]))
     checks = {
         "fresh_session_id": session == [run_id],
+        "compiled_build_identity_matches_sidecar": build_ok,
         "gpu_suite_zero_failures": suite_ok,
         "required_gpu_probes": probe_ok,
         "no_gpu_probe_failures": not any(state == "FAIL" for _, state, _ in probe_records),
@@ -299,7 +307,7 @@ def collect(args):
                 expected_eboot.update(block)
     eboot_matches = eboot_info == {"bytes": eboot_bytes, "sha256": expected_eboot.hexdigest()}
     log = log_path.read_text(errors="replace")
-    report = assess_log(log, manifest["run_id"], eboot_matches)
+    report = assess_log(log, manifest["run_id"], eboot_matches, manifest["compiled_build_identity"])
     if not report["checks"]["fresh_session_id"]:
         raise ValueError("Stale or mismatched CAR SESSION run_id; refusing to associate this log")
     if not eboot_matches:

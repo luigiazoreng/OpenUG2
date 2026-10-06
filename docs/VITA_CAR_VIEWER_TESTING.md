@@ -75,6 +75,7 @@ final status for every probe:
 
 ```text
 CAR SESSION run_id=<24 lowercase hex characters>
+CAR BUILD revision=<compiled-revision> source_sha256=<64 lowercase hex characters>
 GPU SUITE passed=<N> failed=0 unsupported=<K> elapsed_ms=<finite-number>
 GPU PROBE engine_program PASS linked=1
 GPU PROBE framebuffer_depth PASS rgba=1 expected_rgb=1 error=0.0
@@ -82,14 +83,20 @@ GPU PROBE rgba_alpha PASS rgba=1 expected_rgb=1 error=0.0
 GPU PROBE dxt1_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
 GPU PROBE dxt3_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
 GPU PROBE dxt5_rgba_fallback PASS rgba=1 expected_rgb=1 error=0.0
+GPU PROBE dxt1_cutout_rgba PASS rgba=0,0,255,255 expected_rgb=0,0,255 error=0x0
+GPU PROBE uniform_arrays PASS rgba=255,255,0,255 expected_rgb=255,255,0 error=0x0
+GPU PROBE uniform_array_element PASS rgba=255,0,255,255 expected_rgb=255,0,255 error=0x0
 GPU PROBE mip_sampling PASS rgba=1 expected_rgb=1 error=0.0
 GPU PROBE mip_generation PASS rgba=1 expected_rgb=1 error=0.0
 CAR READY meshes=<positive> textures=<positive> wheels=<positive>
 CAR SHUTDOWN frames=<positive> status=0
 ```
 
-Probe key-value details after the state are retained as flexible log text; the
-parser checks exact marker names/states and accepts diagnostic suffix fields.
+For a bundle with a compiled build sidecar, `CAR BUILD` must appear exactly
+once and its revision/source SHA must match that sidecar. Without a sidecar,
+this marker is informational. Probe diagnostic suffixes remain in the
+collected raw log; the parser checks marker names/states and accepts suffix
+fields without interpreting their formatting.
 Any required-probe `FAIL` or `UNSUPPORTED` at any stage fails the check. GPU
 suite records may repeat only when their pass/fail/unsupported counts agree;
 each must have finite elapsed time and zero failures. Native DXT compression

@@ -44,12 +44,15 @@ class FakeUSB(vita_device.USB):
         self.description = {"kind": "fake-usb"}
 
 
-def good_log(run_id):
+def good_log(run_id, build=None):
     probe_lines = []
-    for name in cb.PROBES:
+    for name in cb.REQUIRED_PROBES:
         detail = "linked=1" if name == "engine_program" else "rgba=1 expected_rgb=1 error=0.0"
         probe_lines.append(f"GPU PROBE {name} PASS {detail}")
-    return (f"CAR SESSION run_id={run_id}\nGPU SUITE passed=8 failed=0 unsupported=0 elapsed_ms=2.50\n"
+    build_line = (f"CAR BUILD revision={build['compiled_revision']} source_sha256={build['source_sha256']}\n"
+                  if build else "")
+    return (f"CAR SESSION run_id={run_id}\n" + build_line
+            + f"GPU SUITE passed=11 failed=0 unsupported=0 elapsed_ms=2.50\n"
             + "\n".join(probe_lines)
             + "\nCAR READY meshes=31 textures=12 wheels=4\nCAR SHUTDOWN frames=20 status=0\n")
 
@@ -70,10 +73,13 @@ class BundleTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def prepare(self, name="bundle"):
+    def prepare(self, name="bundle", build_manifest=None):
         output = self.base / name
-        rc = cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
-                      "--output", str(output)])
+        argv = ["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk)]
+        if build_manifest:
+            argv += ["--build-manifest", str(build_manifest)]
+        argv += ["--output", str(output)]
+        rc = cb.main(argv)
         self.assertEqual(rc, 0)
         return output / "ready"
 
@@ -220,11 +226,22 @@ class BundleTests(unittest.TestCase):
                  "eboot_sha256": eboot_sha}
         manifest_path = self.base / "build.json"
         manifest_path.write_text(json.dumps(build))
-        out = self.base / "build-bundle"
-        self.assertEqual(cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
-                                  "--build-manifest", str(manifest_path), "--output", str(out)]), 0)
-        prepared = json.loads((out / "ready/manifest.json").read_text())
+        bundle = self.prepare("build-bundle", manifest_path)
+        prepared = json.loads((bundle / "manifest.json").read_text())
         self.assertEqual(prepared["compiled_build_identity"], build)
+        run = prepared["run_id"]
+        good = cb.assess_log(good_log(run, build), run, True, build)
+        self.assertTrue(good["checks"]["compiled_build_identity_matches_sidecar"])
+        self.assertEqual(good["state"], "DEVICE_LOG_PASS_MANUAL_REVIEW_REQUIRED")
+        missing = cb.assess_log(good_log(run), run, True, build)
+        self.assertFalse(missing["checks"]["compiled_build_identity_matches_sidecar"])
+        divergent = dict(build, compiled_revision="different-revision")
+        mismatch = cb.assess_log(good_log(run, divergent), run, True, build)
+        self.assertFalse(mismatch["checks"]["compiled_build_identity_matches_sidecar"])
+        duplicate = cb.assess_log(good_log(run, build) +
+                                  f"CAR BUILD revision={build['compiled_revision']} source_sha256={build['source_sha256']}\n",
+                                  run, True, build)
+        self.assertFalse(duplicate["checks"]["compiled_build_identity_matches_sidecar"])
         build["vpk_sha256"] = "0" * 64
         manifest_path.write_text(json.dumps(build))
         self.assertEqual(cb.main(["prepare", "--data-root", str(self.data), "--vpk", str(self.vpk),
