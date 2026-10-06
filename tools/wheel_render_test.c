@@ -19,11 +19,11 @@ int main(void) {
     assert(w);SDL_GLContext ctx=SDL_GL_CreateContext(w);assert(ctx);
     RProg r=render_program();GpuMesh q=make_quad();
     float m[16]={2,0,0,0,0,2,0,0,0,0,1,0,-1,-1,0,1};
-    glUniformMatrix4fv(r.uMVP,1,GL_FALSE,m);
-    glUniform1f(r.uFogDensity,0);glUniform1f(r.uAmbient,1.0f/1.35f);
-    glUniform1f(r.uDiffuse,0);glUniform1f(r.uSpec,0);glUniform1f(r.uEnv,0);
-    glUniform1f(r.uClearcoat,0);glUniform1f(r.uRimTint,0);
-    glUniform3f(r.uColor,0,1,0);glUniform3f(r.uCamPos,0,0,3);
+    render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,m);
+    render_uniform1f(r.uFogDensity,0);render_uniform1f(r.uAmbient,1.0f/1.35f);
+    render_uniform1f(r.uDiffuse,0);render_uniform1f(r.uSpec,0);render_uniform1f(r.uEnv,0);
+    render_uniform1f(r.uClearcoat,0);render_uniform1f(r.uRimTint,0);
+    render_uniform3f(r.uColor,0,1,0);render_uniform3f(r.uCamPos,0,0,3);
     unsigned char pixels[]={255,0,0,0, 255,0,0,127, 255,0,0,128, 255,0,0,255};
     GLuint tex;glGenTextures(1,&tex);glBindTexture(GL_TEXTURE_2D,tex);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,4,1,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
@@ -41,8 +41,8 @@ int main(void) {
         else {glDisable(GL_DEPTH_TEST);glDepthMask(GL_FALSE);glEnable(GL_BLEND);}
         glBlendFuncSeparate(GL_ONE,GL_ZERO,GL_ZERO,GL_ONE);
         glBindTexture(GL_TEXTURE_2D,tex);
-        glUniform1f(r.uUseTex,.25f);glUniform1f(r.uAlpha,.4f);glUniform1f(r.uDecal,.8f);
-        glUniform1f(r.uAlphaTest,.75f);glUniform1f(r.uTextureAlpha,.5f);
+        render_uniform1f(r.uUseTex,.25f);render_uniform1f(r.uAlpha,.4f);render_uniform1f(r.uDecal,.8f);
+        render_uniform1f(r.uAlphaTest,.75f);render_uniform1f(r.uTextureAlpha,.5f);
         render_wheel_mesh(&r,&q,missing?0:tex,missing?N2_DRAW_CUTOUT:mode);
         unsigned char a[4],b[4],c[4],below[4];float za,zc;
         glReadPixels(4,16,1,1,GL_RGBA,GL_UNSIGNED_BYTE,a);
@@ -81,9 +81,9 @@ int main(void) {
        Draw an actual farther green surface, not just a prefilled depth buffer. */
     glDepthMask(GL_TRUE);glClearDepth(1);glClearColor(0,0,1,1);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    m[14]=.5f;glUniformMatrix4fv(r.uMVP,1,GL_FALSE,m);
+    m[14]=.5f;render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,m);
     render_wheel_mesh(&r,&q,0,N2_DRAW_OPAQUE);
-    m[14]=0;glUniformMatrix4fv(r.uMVP,1,GL_FALSE,m);
+    m[14]=0;render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,m);
     render_wheel_mesh(&r,&q,tex,N2_DRAW_BLEND);
     unsigned char overlap[4];
     glReadPixels(4,16,1,1,GL_RGBA,GL_UNSIGNED_BYTE,overlap);
@@ -102,14 +102,14 @@ int main(void) {
     for(int i=0;i<4;i++)pixels[i*4]=pixels[i*4+1]=pixels[i*4+2]=32;
     glBindTexture(GL_TEXTURE_2D,tex);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,4,1,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
-    glUniform1f(r.uAmbient,.42f);glUniform3f(r.uLight,0,0,-1);
+    render_uniform1f(r.uAmbient,.42f);render_uniform3f(r.uLight,0,0,-1);
     for(int mode=N2_DRAW_CUTOUT;mode<=N2_DRAW_BLEND;mode++)
     for(int material=0;material<7;material++) {
         unsigned char raw[4]={0};q.car_material=materials[material];
         for(int paint=0;paint<2;paint++) {
             glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-            glUniform1f(r.uRimTint,(float)paint);glUniform1f(r.uSpec,.85f);
-            glUniform1f(r.uEnv,.25f);glUniform1f(r.uClearcoat,.4f);
+            render_uniform1f(r.uRimTint,(float)paint);render_uniform1f(r.uSpec,.85f);
+            render_uniform1f(r.uEnv,.25f);render_uniform1f(r.uClearcoat,.4f);
             render_wheel_mesh(&r,&q,tex,mode);
             unsigned char sample[4],corner[4];
             glReadPixels(28,16,1,1,GL_RGBA,GL_UNSIGNED_BYTE,sample);
@@ -134,7 +134,7 @@ int main(void) {
     glGenBuffers(1,&q.cbo);glBindBuffer(GL_ARRAY_BUFFER,q.cbo);
     glBufferData(GL_ARRAY_BUFFER,sizeof colors,colors,GL_STATIC_DRAW);
     q.car_material=N2_MAT_INTERIOR;
-    glUniform1f(r.uVColor,.25f);
+    render_uniform1f(r.uVColor,.25f);
     glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     render_wheel_mesh(&r,&q,tex,N2_DRAW_CUTOUT);
     unsigned char corner[4],face[4];
@@ -145,6 +145,6 @@ int main(void) {
     glDeleteBuffers(1,&q.cbo);
     assert(glGetError()==GL_NO_ERROR);
     glDeleteTextures(1,&tex);glDeleteBuffers(1,&q.vbo);glDeleteBuffers(1,&q.nbo);glDeleteBuffers(1,&q.ibo);
-    glDeleteProgram(r.prog);SDL_GL_DeleteContext(ctx);SDL_DestroyWindow(w);SDL_Quit();
+    render_delete_program(r.prog);SDL_GL_DeleteContext(ctx);SDL_DestroyWindow(w);SDL_Quit();
     puts("wheel_render_test: PASS (alpha, depth, state, sorting, overlap, wheel material paint/sheen isolation)");
 }

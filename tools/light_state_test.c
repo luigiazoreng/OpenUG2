@@ -54,12 +54,12 @@ int main(void) {
     float clip[]={2,0,0,0,0,2,0,0,0,0,1,0,-1,-1,0,1};
     glViewport(0,0,32,32);glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    glUniformMatrix4fv(r.uMVP,1,GL_FALSE,clip);
-    glUniform1f(r.uUnlit,1);glUniform1f(r.uUseTex,0);glUniform1f(r.uAlpha,.5f);
-    glUniform1f(r.uFogDensity,0);glUniform3f(r.uColor,0,0,0);
+    render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,clip);
+    render_uniform1f(r.uUnlit,1);render_uniform1f(r.uUseTex,0);render_uniform1f(r.uAlpha,.5f);
+    render_uniform1f(r.uFogDensity,0);render_uniform3f(r.uColor,0,0,0);
     for(int soft=1;soft<=2;soft++) {
         glClearColor(1,1,1,1);glClear(GL_COLOR_BUFFER_BIT);
-        glUniform1f(r.uSoft,(float)soft);draw_gpumesh(&quad);
+        render_uniform1f(r.uSoft,(float)soft);draw_gpumesh(&quad);
         unsigned char inside[4],edge[4];
         glReadPixels(28,27,1,1,GL_RGBA,GL_UNSIGNED_BYTE,inside);
         glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,edge);
@@ -84,8 +84,8 @@ int main(void) {
     for (int mode=0; mode<3; mode++) {
         int blocked = mode==1, black_in_fog = mode==2;
         const float fog_color[3]={0.3f,0.2f,0.1f};
-        glUniform3fv(r.uFogColor,1,fog_color);
-        glUniform1f(r.uFogDensity,black_in_fog ? 1.0f : 0.0f);
+        render_uniform3fv(r.uFogColor,1,fog_color);
+        render_uniform1f(r.uFogDensity,black_in_fog ? 1.0f : 0.0f);
         if (black_in_fog) {
             const unsigned char black[4]={0,0,0,255};
             glBindTexture(GL_TEXTURE_2D,tex[0]);
@@ -97,9 +97,9 @@ int main(void) {
         if (blocked) glEnable(GL_BLEND); else glDisable(GL_BLEND);
         glBlendFuncSeparate(GL_ONE,GL_ZERO,GL_ZERO,GL_ONE);
         glBindTexture(GL_TEXTURE_2D,tex[1]);
-        glUniform3fv(r.uColor,1,color);
-        glUniformMatrix4fv(r.uMVP,1,GL_FALSE,saved);
-        for (int i=0;i<5;i++) glUniform1f(scalars[i],values[i]);
+        render_uniform3fv(r.uColor,1,color);
+        render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,saved);
+        for (int i=0;i<5;i++) render_uniform1f(scalars[i],values[i]);
         assert(render_district_lights(&r,&quad,tex[0],lights,2,cam,look,mvp,10,1.0f,1.0f)==1);
         eq_uniform(&r,r.uColor,color,3);
         eq_uniform(&r,r.uMVP,saved,16);
@@ -122,7 +122,7 @@ int main(void) {
        A size-scaled camera offset used to pull the sprite through that wall. */
     glBindTexture(GL_TEXTURE_2D,tex[0]);
     glTexSubImage2D(GL_TEXTURE_2D,0,0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
-    glUniform1f(r.uFogDensity,0);
+    render_uniform1f(r.uFogDensity,0);
     for(int angle=0;angle<4;angle++)for(int far=0;far<2;far++)for(int blocked=0;blocked<2;blocked++) {
         float co=cosf(angle*1.570796327f),sn=sinf(angle*1.570796327f);
         float distance=far?30:3;
@@ -135,9 +135,9 @@ int main(void) {
             float wall[]={-sn*4,co*4,0,0, 0,0,4,0, co,sn,0,0,
                           -co*.2f+sn*2,-sn*.2f-co*2,-2,1};
             float wall_mvp[16];mat_mul(world,wall,wall_mvp);
-            glUniformMatrix4fv(r.uMVP,1,GL_FALSE,wall_mvp);
-            glUniform1f(r.uUseTex,0);glUniform1f(r.uUnlit,1);glUniform1f(r.uEmissiveTex,0);
-            glUniform1f(r.uSoft,0);glUniform1f(r.uAlpha,1);glUniform3f(r.uColor,0,0,0);
+            render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,wall_mvp);
+            render_uniform1f(r.uUseTex,0);render_uniform1f(r.uUnlit,1);render_uniform1f(r.uEmissiveTex,0);
+            render_uniform1f(r.uSoft,0);render_uniform1f(r.uAlpha,1);render_uniform3f(r.uColor,0,0,0);
             draw_gpumesh(&quad);
         }
         N2LightSrc lamp={{0,0,0},10,50,0xffffffffu};
@@ -163,10 +163,10 @@ int main(void) {
         glBindTexture(GL_TEXTURE_2D,tex[0]);
         glTexSubImage2D(GL_TEXTURE_2D,0,0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,px);
         glDepthMask(GL_TRUE);glClearDepth(mode==1?0:1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-        glDisable(GL_DEPTH_TEST);glUniformMatrix4fv(r.uMVP,1,GL_FALSE,wrong);
-        render_model(&r,wrong);glUniform1f(r.uAlpha,0);glUniform1f(r.uSoft,1);
-        const float fog[]={.3f,.2f,.1f};glUniform3fv(r.uFogColor,1,fog);
-        glUniform1f(r.uFogDensity,mode==2?1:0);batch.unresolved=mode==3;
+        glDisable(GL_DEPTH_TEST);render_uniform_matrix4fv(r.uMVP,1,GL_FALSE,wrong);
+        render_model(&r,wrong);render_uniform1f(r.uAlpha,0);render_uniform1f(r.uSoft,1);
+        const float fog[]={.3f,.2f,.1f};render_uniform3fv(r.uFogColor,1,fog);
+        render_uniform1f(r.uFogDensity,mode==2?1:0);batch.unresolved=mode==3;
         assert(render_world_glows(&r,&batch,1,identity)==(mode==3?0:1));
         eq_uniform(&r,r.uMVP,identity,16);eq_uniform(&r,r.uFogColor,fog,3);
         unsigned char out[4];glReadPixels(16,16,1,1,GL_RGBA,GL_UNSIGNED_BYTE,out);
@@ -175,7 +175,7 @@ int main(void) {
         assert(glGetError()==GL_NO_ERROR);
     }
     glDeleteBuffers(1,&batch.vbo);glDeleteBuffers(1,&batch.ibo);
-    glDeleteTextures(2,tex); glDeleteProgram(r.prog);
+    glDeleteTextures(2,tex); render_delete_program(r.prog);
     glDeleteBuffers(1,&quad.vbo); glDeleteBuffers(1,&quad.nbo); glDeleteBuffers(1,&quad.ibo);
     SDL_GL_DeleteContext(ctx); SDL_DestroyWindow(win); SDL_Quit();
     puts("light_state_test: PASS (vehicle footprints, soft shadow coverage, state isolation, depth occlusion, distance culling, additive fog, world-glow transform isolation)");

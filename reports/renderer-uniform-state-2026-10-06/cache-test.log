@@ -1,0 +1,6 @@
+cc -O1 -g -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function \
+	-fsanitize=address,undefined -fno-omit-frame-pointer -I/tmp/openug2-vita-reference/desktop-sdl/usr/include/SDL2 -I/tmp/openug2-vita-reference/desktop-sdl/usr/include/x86_64-linux-gnu -D_REENTRANT -Isrc \
+	tools/render_uniform_cache_test.c src/render_uniform.c -o build/render_uniform_cache_test -lm
+./build/render_uniform_cache_test
+render uniform cache test passed
+{"unit": "openug2-issue7-validation-2000133", "kernel_memory_max_mib": 512, "kernel_swap_max_mib": 0, "sampled_cgroup_peak_mib": 106.6, "minimum_host_available_mib": 7165.9, "returncode": 0}

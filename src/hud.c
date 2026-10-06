@@ -361,19 +361,19 @@ static void hud_blit(const HudDC *dc, GLuint tex, float w, float h,
     if (a <= 0.0f) return;
     float M[16];
     hud_xform(dc->asp, w, h, cx, cy, rot, M);
-    glUniformMatrix4fv(dc->rp->uMVP, 1, GL_FALSE, M);
+    render_uniform_matrix4fv(dc->rp->uMVP, 1, GL_FALSE, M);
     if (tex) {
         glBindTexture(GL_TEXTURE_2D, tex);
-        glUniform1f(dc->rp->uUseTex, 1.0f);
-        glUniform1f(dc->rp->uEmissiveTex, 1.0f);
-        glUniform1f(dc->rp->uUnlit, 0.0f);
+        render_uniform1f(dc->rp->uUseTex, 1.0f);
+        render_uniform1f(dc->rp->uEmissiveTex, 1.0f);
+        render_uniform1f(dc->rp->uUnlit, 0.0f);
     } else {
-        glUniform1f(dc->rp->uUseTex, 0.0f);
-        glUniform1f(dc->rp->uEmissiveTex, 0.0f);
-        glUniform1f(dc->rp->uUnlit, 1.0f);
+        render_uniform1f(dc->rp->uUseTex, 0.0f);
+        render_uniform1f(dc->rp->uEmissiveTex, 0.0f);
+        render_uniform1f(dc->rp->uUnlit, 1.0f);
     }
-    glUniform3f(dc->rp->uColor, r, g, b);
-    glUniform1f(dc->rp->uAlpha, a);
+    render_uniform3f(dc->rp->uColor, r, g, b);
+    render_uniform1f(dc->rp->uAlpha, a);
     draw_gpumesh(dc->quad);
 }
 
@@ -383,11 +383,11 @@ static void hud_blit(const HudDC *dc, GLuint tex, float w, float h,
 static void hud_label(const HudDC *dc, const char *s, float cx, float cy,
                       float size, float r, float g, float b, float a) {
     float py = size / 5.0f, px = py / dc->asp;
-    glUniform1f(dc->rp->uUseTex, 0.0f);
-    glUniform1f(dc->rp->uEmissiveTex, 0.0f);
-    glUniform1f(dc->rp->uUnlit, 1.0f);
-    glUniform3f(dc->rp->uColor, r, g, b);
-    glUniform1f(dc->rp->uAlpha, a);
+    render_uniform1f(dc->rp->uUseTex, 0.0f);
+    render_uniform1f(dc->rp->uEmissiveTex, 0.0f);
+    render_uniform1f(dc->rp->uUnlit, 1.0f);
+    render_uniform3f(dc->rp->uColor, r, g, b);
+    render_uniform1f(dc->rp->uAlpha, a);
     /* draw_text takes a TOP-LEFT origin; centre the run on (cx,cy). */
     draw_text(dc->quad, dc->rp->uMVP, s,
               cx - (float)strlen(s) * 2.0f * px, cy + 2.5f * py, px, py);
@@ -794,20 +794,20 @@ void hud_draw(Hud *h, const RProg *rp, GpuMesh *quad,
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glUniform1f(rp->uUnlit, 1.0f);
-    glUniform1f(rp->uVColor, 0.0f);
+    render_uniform1f(rp->uUnlit, 1.0f);
+    render_uniform1f(rp->uVColor, 0.0f);
     /* both unlit branches mix toward uFogColor; a HUD quad's vPos is meaningless
        so the only safe fog for it is none. Restored below. */
     GLfloat fog_density = 0.0f;
-    glGetUniformfv(rp->prog, rp->uFogDensity, &fog_density);
-    glUniform1f(rp->uFogDensity, 0.0f);
-    glUniform1f(rp->uAlpha, 1.0f);
-    glUniform1f(rp->uDecal, 0.0f);
-    glUniform1f(rp->uAlphaTest, 0.0f);
-    glUniform1f(rp->uTextureAlpha, 1.0f);   /* HUD art is alpha-blended sprites */
-    glUniform1f(rp->uEmissiveTex, 0.0f);
-    glUniform1f(rp->uVista, 0.0f);
-    glUniform3f(rp->uEmissive, 0.0f, 0.0f, 0.0f);
+    render_uniform_getfv(rp->prog, rp->uFogDensity, &fog_density, 1);
+    render_uniform1f(rp->uFogDensity, 0.0f);
+    render_uniform1f(rp->uAlpha, 1.0f);
+    render_uniform1f(rp->uDecal, 0.0f);
+    render_uniform1f(rp->uAlphaTest, 0.0f);
+    render_uniform1f(rp->uTextureAlpha, 1.0f);   /* HUD art is alpha-blended sprites */
+    render_uniform1f(rp->uEmissiveTex, 0.0f);
+    render_uniform1f(rp->uVista, 0.0f);
+    render_uniform3f(rp->uEmissive, 0.0f, 0.0f, 0.0f);
 
     hud_draw_minimap(h, &dc, &s);
     hud_draw_cluster(h, &dc, &s);
@@ -823,13 +823,13 @@ void hud_draw(Hud *h, const RProg *rp, GpuMesh *quad,
     }
 
     /* --- restore --- */
-    glUniform1f(rp->uUseTex, 0.0f);
-    glUniform1f(rp->uUnlit, 0.0f);
-    glUniform1f(rp->uEmissiveTex, 0.0f);
-    glUniform1f(rp->uAlpha, 1.0f);
-    glUniform1f(rp->uTextureAlpha, 0.0f);
-    glUniform1f(rp->uFogDensity, fog_density);
-    glUniform3f(rp->uColor, 1.0f, 1.0f, 1.0f);
+    render_uniform1f(rp->uUseTex, 0.0f);
+    render_uniform1f(rp->uUnlit, 0.0f);
+    render_uniform1f(rp->uEmissiveTex, 0.0f);
+    render_uniform1f(rp->uAlpha, 1.0f);
+    render_uniform1f(rp->uTextureAlpha, 0.0f);
+    render_uniform1f(rp->uFogDensity, fog_density);
+    render_uniform3f(rp->uColor, 1.0f, 1.0f, 1.0f);
     glDepthMask(depth_mask);
     if (depth_on) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (blend_on) glEnable(GL_BLEND); else glDisable(GL_BLEND);
