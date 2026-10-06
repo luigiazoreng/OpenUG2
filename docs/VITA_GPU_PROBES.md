@@ -61,6 +61,9 @@ can batch its caption; existing engine text drawing is unchanged.
 
 The first fresh Vita compile exposed the missing dithering constant and is
 retained as a failed log. The next fresh directory compiled all probe and engine
-translation units with `-Werror`, zero warnings. The stock-car viewer's final
+translation units with zero warnings. Later inspection found that the SDK
+toolchain replaces environment `CFLAGS`; requesting `-Werror` there did not
+enforce it. CMake now sets `-Werror` directly on the target. The stock-car
+viewer final build confirms that flag with zero warnings. Its final
 package is built again from its complete source in its own fresh directory.
 Do not install the intermediate probe VPK as the item-5 car package.
