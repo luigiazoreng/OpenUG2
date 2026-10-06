@@ -2,6 +2,7 @@
 #include "renderer_vita.h"
 #include "gpu_probe.h"
 #include "car_viewer.h"
+#include "render.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -42,6 +43,7 @@ int main(int argc, char **argv) {
     }
     vita_log("CAR SESSION run_id=%s\n", run_id);
     vita_log("CAR BUILD revision=%s source_sha256=%s\n", OPENUG2_BUILD_REVISION, OPENUG2_BUILD_SHA256);
+    render_set_diagnostic_logger(vita_log);
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--frames") && i+1 < argc) {
             char *end; const char *value = argv[++i]; errno = 0;
@@ -56,6 +58,12 @@ int main(int argc, char **argv) {
     vita_renderer_log_pools();
     int status = !vita_gpu_probe_run();
     vita_renderer_log_pools();
+    if (status) {
+        vita_log("CAR ERROR GPU suite failed; car loading was not started\n");
+        vita_platform_close(&platform);
+        vita_log("CAR SHUTDOWN frames=0 status=1\n");
+        vita_log_close(); return 1;
+    }
     char error[1200] = {0};
     Uint64 load_start = SDL_GetPerformanceCounter();
     CarViewer *viewer = car_viewer_create(VITA_DATA_ROOT, error, sizeof error);

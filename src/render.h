@@ -232,6 +232,9 @@ void mat_lookat(const float *eye, const float *fwd, float *m);   /* up = world +
  * selects world geometry. Models must be rigid or uniformly scaled (mirrors
  * allowed), as supplied by mat_car and the wheel/brake hub transforms. */
 void render_model(const RProg *r,const float model[16]);
+/* Optional startup diagnostics; logger is borrowed and called on the GL thread.
+   NULL disables it. No messages are emitted in the per-frame draw path. */
+void render_set_diagnostic_logger(void (*logger)(const char *, ...));
 RProg    render_program(void);          /* compile+link the shader, fetch uniforms */
 GpuMesh *upload_scene(N2Scene *s);      /* VBO/NBO/IBO per mesh, normals computed */
 void free_scene_gpu(GpuMesh *gm, int count);
