@@ -2,28 +2,289 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <limits.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+#ifndef OPENUG2_RESOURCE_BUFFERED
+#include <sys/mman.h>
+#endif
 
+#include "nfsu2.h"
 #include "resource.h"
 
+#define RES_OWNER_MAGIC UINT32_C(0x52534f57)
+#define RES_BUDGET_MAGIC UINT32_C(0x52534247)
+#define RES_MIB UINT32_C(1048576)
+
+/* The union gives the prefix the alignment of C's fundamental object types,
+ * including long double and pointers. Its rounded size preserves that
+ * alignment for data; the full prefix is included in the budget reservation. */
+typedef union {
+    struct {
+        uint32_t magic, reserved;
+        ResBudget *budget;
+        uint32_t allocation;
+        uint32_t payload;
+    } m;
+    long double align_long_double;
+    void *align_pointer;
+    uint64_t align_u64;
+} ResOwner;
+
+static ResBudget default_budget = {
+    UINT32_C(64) * RES_MIB, UINT32_C(32) * RES_MIB, 0, 0, 0,
+    RES_BUDGET_MAGIC, 0
+};
+static int default_budget_started;
+#ifdef RESOURCE_TESTING
+size_t res_test_read_limit = SIZE_MAX;
+#endif
+
+static void budget_lock(ResBudget *budget) {
+    while (__sync_lock_test_and_set(&budget->lock, 1u))
+        while (__sync_val_compare_and_swap(&budget->lock, 0u, 0u) != 0u) { }
+}
+
+static void budget_unlock(ResBudget *budget) {
+    __sync_lock_release(&budget->lock);
+}
+
+int res_budget_init(ResBudget *budget, uint32_t limit_bytes,
+                    uint32_t per_file_bytes) {
+    if (!budget || !limit_bytes || !per_file_bytes || per_file_bytes > limit_bytes ||
+        per_file_bytes > UINT32_MAX - (uint32_t)sizeof(ResOwner)) return 0;
+    if (budget->initialized == RES_BUDGET_MAGIC) {
+        budget_lock(budget);
+        if (budget->live) { budget_unlock(budget); return 0; }
+        budget->limit = limit_bytes;
+        budget->per_file = per_file_bytes;
+        budget->used = 0;
+        budget->peak = 0;
+        budget_unlock(budget);
+        return 1;
+    }
+    if (budget->limit || budget->per_file || budget->used || budget->peak ||
+        budget->live || budget->initialized || budget->lock) return 0;
+    budget->limit = limit_bytes;
+    budget->per_file = per_file_bytes;
+    budget->used = 0;
+    budget->peak = 0;
+    budget->live = 0;
+    budget->initialized = RES_BUDGET_MAGIC;
+    budget->lock = 0;
+    return 1;
+}
+
+void res_budget_snapshot(ResBudget *budget, ResBudgetStats *out) {
+    if (!budget || !out || budget->initialized != RES_BUDGET_MAGIC) return;
+    budget_lock(budget);
+    out->limit = budget->limit;
+    out->per_file = budget->per_file;
+    out->used = budget->used;
+    out->peak = budget->peak;
+    out->live = budget->live;
+    budget_unlock(budget);
+}
+
+static int budget_reserve(ResBudget *budget, uint32_t payload,
+                          uint32_t total) {
+    int ok = 0;
+    budget_lock(budget);
+    if (payload && payload <= budget->per_file && total >= payload &&
+        total <= UINT32_MAX - budget->used &&
+        budget->used + total <= budget->limit && budget->live < UINT32_MAX) {
+        budget->used += total;
+        if (budget->used > budget->peak) budget->peak = budget->used;
+        budget->live++;
+        ok = 1;
+    }
+    budget_unlock(budget);
+    return ok;
+}
+
+static void budget_release(ResBudget *budget, uint32_t total) {
+    budget_lock(budget);
+    if (budget->used >= total) budget->used -= total;
+    else budget->used = 0;
+    if (budget->live) budget->live--;
+    budget_unlock(budget);
+}
+
+int res_map_budget_configure(uint32_t limit_bytes, uint32_t per_file_bytes) {
+    if (!limit_bytes || !per_file_bytes || per_file_bytes > limit_bytes ||
+        per_file_bytes > UINT32_MAX - (uint32_t)sizeof(ResOwner)) return 0;
+    budget_lock(&default_budget);
+    if (default_budget.live || default_budget_started) {
+        budget_unlock(&default_budget);
+        return 0;
+    }
+    default_budget.limit = limit_bytes;
+    default_budget.per_file = per_file_bytes;
+    default_budget.used = 0;
+    default_budget.peak = 0;
+    budget_unlock(&default_budget);
+    return 1;
+}
+
+static void set_error(char *error, size_t cap, const char *path,
+                      const char *reason) {
+    if (error && cap) snprintf(error, cap, "%s: %s", path ? path : "file", reason);
+}
+
+int res_file_open(const char *path, ResBudget *budget, ResFile *out,
+                  char *error, size_t errorcap) {
+    if (error && errorcap) error[0] = 0;
+    if (!path || !budget || !out) {
+        set_error(error, errorcap, path, "invalid argument");
+        return 0;
+    }
+    if (budget->initialized != RES_BUDGET_MAGIC) {
+        set_error(error, errorcap, path, "resource budget is not initialized");
+        return 0;
+    }
+    if (out->data || out->len) {
+        set_error(error, errorcap, path, "output owner is not empty");
+        return 0;
+    }
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        char message[160]; snprintf(message, sizeof message, "open failed: %s", strerror(errno));
+        set_error(error, errorcap, path, message);
+        return 0;
+    }
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        int saved = errno;
+        close(fd);
+        set_error(error, errorcap, path, strerror(saved));
+        return 0;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        close(fd); set_error(error, errorcap, path, "not a regular file");
+        return 0;
+    }
+    if (st.st_size <= 0) {
+        close(fd); set_error(error, errorcap, path, "empty file"); return 0;
+    }
+    if ((uintmax_t)st.st_size > (uintmax_t)LONG_MAX ||
+        (uintmax_t)st.st_size > (uintmax_t)SIZE_MAX - sizeof(ResOwner) ||
+        (uintmax_t)st.st_size > UINT32_MAX) {
+        close(fd); set_error(error, errorcap, path, "file size is not representable"); return 0;
+    }
+    uint32_t payload = (uint32_t)st.st_size;
+    if (payload > UINT32_MAX - (uint32_t)sizeof(ResOwner)) {
+        close(fd); set_error(error, errorcap, path, "file plus owner header is too large"); return 0;
+    }
+    uint32_t total = payload + (uint32_t)sizeof(ResOwner);
+    if (!budget_reserve(budget, payload, total)) {
+        close(fd); set_error(error, errorcap, path, "resource budget or per-file limit exceeded"); return 0;
+    }
+    ResOwner *owner = (ResOwner *)malloc((size_t)total);
+    if (!owner) {
+        budget_release(budget, total); close(fd);
+        set_error(error, errorcap, path, "allocation failed"); return 0;
+    }
+    owner->m.magic = RES_OWNER_MAGIC;
+    owner->m.reserved = 0;
+    owner->m.budget = budget;
+    owner->m.allocation = total;
+    owner->m.payload = payload;
+    unsigned char *data = (unsigned char *)(owner + 1);
+    size_t done = 0;
+#ifdef RESOURCE_TESTING
+    extern size_t res_test_read_limit;
+#endif
+    while (done < (size_t)payload) {
+        size_t ask = (size_t)payload - done;
+        if (ask > (size_t)INT_MAX) ask = (size_t)INT_MAX;
+#ifdef RESOURCE_TESTING
+        if (res_test_read_limit < ask) ask = res_test_read_limit;
+        if (!ask) break;
+#endif
+        ssize_t n = read(fd, data + done, ask);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) break;
+        done += (size_t)n;
+#ifdef RESOURCE_TESTING
+        res_test_read_limit -= (size_t)n;
+#endif
+    }
+    int close_error = close(fd);
+    if (done != (size_t)payload || close_error != 0) {
+        free(owner); budget_release(budget, total);
+        set_error(error, errorcap, path,
+                  done != (size_t)payload ? "short read" : "close failed");
+        return 0;
+    }
+    out->data = data;
+    out->len = (long)payload;
+    return 1;
+}
+
+void res_file_close(ResFile *file) {
+    if (!file) return;
+    if (file->data) {
+        ResOwner *owner = ((ResOwner *)file->data) - 1;
+        if (owner->m.magic == RES_OWNER_MAGIC && owner->m.budget) {
+            ResBudget *budget = owner->m.budget;
+            uint32_t allocation = owner->m.allocation;
+            owner->m.magic = 0;
+            free(owner);
+            budget_release(budget, allocation);
+        }
+    }
+    file->data = NULL;
+    file->len = 0;
+}
+
 unsigned char *res_map_file(const char *path, long *len) {
+    if (len) *len = 0;
+    if (!path || !len) return NULL;
+#ifdef OPENUG2_RESOURCE_BUFFERED
+    ResFile file = {0};
+    char error[256];
+    budget_lock(&default_budget);
+    default_budget_started = 1;
+    budget_unlock(&default_budget);
+    if (!res_file_open(path, &default_budget, &file, error, sizeof error)) {
+        ResBudgetStats stats;
+        res_budget_snapshot(&default_budget, &stats);
+        fprintf(stderr, "resource map %s failed: %s (file limit %u, total %u, used %u)\n",
+                path, error, stats.per_file, stats.limit, stats.used);
+        return NULL;
+    }
+    unsigned char *data = file.data;
+    *len = file.len;
+    file.data = NULL; file.len = 0; /* ownership is now legacy pointer metadata */
+    return data;
+#else
     int fd = open(path, O_RDONLY);
     if (fd < 0) return NULL;
     struct stat st;
-    if (fstat(fd, &st) != 0 || st.st_size <= 0) { close(fd); return NULL; }
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+        (uintmax_t)st.st_size > (uintmax_t)LONG_MAX ||
+        (uintmax_t)st.st_size > (uintmax_t)SIZE_MAX) { close(fd); return NULL; }
     void *p = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
     if (p == MAP_FAILED) return NULL;
     *len = (long)st.st_size;
     return (unsigned char *)p;
+#endif
 }
 
 void res_unmap_file(unsigned char *data, long len) {
-    if (data && len > 0) munmap(data, (size_t)len);
+    if (!data || len <= 0) return;
+#ifdef OPENUG2_RESOURCE_BUFFERED
+    ResFile file = {data, len};
+    res_file_close(&file);
+#else
+    munmap(data, (size_t)len);
+#endif
 }
 
 int res_list_tracks(const char *troot, char (*list)[64], int max,
