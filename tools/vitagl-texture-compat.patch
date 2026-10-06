@@ -1,0 +1,399 @@
+diff --git a/source/misc.c b/source/misc.c
+index 238f052..347875d 100644
+--- a/source/misc.c
++++ b/source/misc.c
+@@ -327,9 +327,9 @@ void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
+ 	}
+ #endif
+ 
+-	x_scale = width >> 1;
++	x_scale = width * 0.5f;
+ 	x_port = x + x_scale;
+-	y_scale = -(height >> 1);
++	y_scale = height * -0.5f;
+ 	y_port = (is_rendering_display ? DISPLAY_HEIGHT : in_use_framebuffer->height) - y + y_scale;
+ #ifndef HAVE_UNFLIPPED_FBOS
+ 	if (!is_rendering_display) {
+diff --git a/source/textures.c b/source/textures.c
+index 7b5d704..47e990d 100644
+--- a/source/textures.c
++++ b/source/textures.c
+@@ -921,7 +921,24 @@ static inline __attribute__((always_inline)) void _glTexImage2D_FlatIMPL(texture
+ 			}
+ 		}
+ 	} else if (tex->write_cb) {
+-		gpu_alloc_mipmaps(level, tex);
++		uint32_t base_w, base_h;
++		vglGetTexSizes(&tex->gxm_tex, &base_w, &base_h);
++		int max_level = 0;
++		for (uint32_t max_dimension = MAX(base_w, base_h); max_dimension > 1; max_dimension >>= 1)
++			max_level++;
++		if (level < 1 || level > max_level || level >= 16) {
++			SET_GL_ERROR(GL_INVALID_VALUE)
++		}
++		if (width != MAX(base_w >> level, 1) || height != MAX(base_h >> level, 1)) {
++			SET_GL_ERROR(GL_INVALID_VALUE)
++		}
++		if (tex_format != vglGetTexFormat(&tex->gxm_tex)) {
++			SET_GL_ERROR(GL_INVALID_OPERATION)
++		}
++		if (data && fast_store && data_bpp != tex_format_to_bytespp(tex_format)) {
++			SET_GL_ERROR(GL_INVALID_OPERATION)
++		}
++		gpu_upload_mipmap_level(level, width, height, data, tex, data_bpp, read_cb, tex->write_cb, fast_store);
+ 	} else {
+ 		gpu_alloc_compressed_texture(level, width, height, tex_format, 0, data, tex, data_bpp, GL_TRUE);
+ 	}
+diff --git a/source/utils/gpu_utils.c b/source/utils/gpu_utils.c
+index 4464db5..72ad710 100644
+--- a/source/utils/gpu_utils.c
++++ b/source/utils/gpu_utils.c
+@@ -737,16 +737,20 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
+ 				case SCE_GXM_TEXTURE_FORMAT_UBC2_ABGR:
+ 				case SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR:
+ 				case SCE_GXM_TEXTURE_FORMAT_UBC5_GR:
+-					if (aligned_width == w && aligned_height == h && h <= 2048 && w <= 2048) {
++					if (aligned_width == w && aligned_height == h && w >= 4 && h >= 4 && h <= 2048 && w <= 2048) {
+ #ifdef TEXTURE_UPLOADS_SPEEDHACK
+ 						void *mapped_src = data;
+ #else
+ 						void *mapped_src = gpu_alloc_mapped_temp(image_size);
+ 						vgl_fast_memcpy(mapped_src, data, image_size);
+ #endif
+-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
++						int transfer_result_raw128 = sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 4,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW128, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 4, NULL, 0, NULL);
++						if (transfer_result_raw128 != 0) {
++							vgl_log("sceGxmTransferCopy RAW128 failed for compressed mip format %d (%d); CPU swizzle fallback.\n", format, transfer_result_raw128);
++							SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
++						}
+ 					} else {
+ 						SwizzleTexData128Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
+ 					}
+@@ -755,31 +759,39 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
+ 					SwizzleTexDataETC1((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), ALIGNBLOCK(MIN(aligned_width, aligned_height), 4));
+ 					break;
+ 				case SCE_GXM_TEXTURE_FORMAT_PVRTII2BPP_ABGR:
+-					if (aligned_width == w && aligned_height == h && h <= 2048) {
++					if (aligned_width == w && aligned_height == h && w >= 8 && h >= 4 && h <= 2048) {
+ #ifdef TEXTURE_UPLOADS_SPEEDHACK
+ 						void *mapped_src = data;
+ #else
+ 						void *mapped_src = gpu_alloc_mapped_temp(image_size);
+ 						vgl_fast_memcpy(mapped_src, data, image_size);
+ #endif
+-						sceGxmTransferCopy(w / 8, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
++						int transfer_result_pvr = sceGxmTransferCopy(w / 8, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w, NULL, 0, NULL);
++						if (transfer_result_pvr != 0) {
++							vgl_log("sceGxmTransferCopy RAW64 PVRTII mip format %d failed (%d); CPU swizzle fallback.\n", format, transfer_result_pvr);
++							SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 8), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 8), MIN(ALIGNBLOCK(aligned_width, 8), ALIGNBLOCK(aligned_height, 4)));
++						}
+ 					} else {
+ 						SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 8), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 8), MIN(ALIGNBLOCK(aligned_width, 8), ALIGNBLOCK(aligned_height, 4)));
+ 					}
+ 					break;
+ 				default:
+-					if (aligned_width == w && aligned_height == h && h <= 2048) {
++					if (aligned_width == w && aligned_height == h && w >= 4 && h >= 4 && h <= 2048) {
+ #ifdef TEXTURE_UPLOADS_SPEEDHACK
+ 						void *mapped_src = data;
+ #else
+ 						void *mapped_src = gpu_alloc_mapped_temp(image_size);
+ 						vgl_fast_memcpy(mapped_src, data, image_size);
+ #endif
+-						sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
++						int transfer_result_raw64 = sceGxmTransferCopy(w / 4, h / 4, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_LINEAR, mapped_src, 0, 0, w * 2,
+ 							SCE_GXM_TRANSFER_FORMAT_RAW64, SCE_GXM_TRANSFER_SWIZZLED, mip_data, 0, 0, w * 2, NULL, 0, NULL);
++						if (transfer_result_raw64 != 0) {
++							vgl_log("sceGxmTransferCopy RAW64 mip format %d failed (%d); CPU swizzle fallback.\n", format, transfer_result_raw64);
++							SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), MIN(ALIGNBLOCK(aligned_width, 4), ALIGNBLOCK(aligned_height, 4)));
++						}
+ 					} else {
+ 						SwizzleTexData64Bpp((uint8_t *)mip_data, (uint8_t *)data, 0, 0, ALIGNBLOCK(w, 4), ALIGNBLOCK(h, 4), ALIGNBLOCK(w, 4), MIN(ALIGNBLOCK(aligned_width, 4), ALIGNBLOCK(aligned_height, 4)));
+ 					}
+@@ -805,109 +817,179 @@ void gpu_alloc_compressed_texture(int32_t mip_level, uint32_t w, uint32_t h, Sce
+ 	}
+ }
+ 
+-void gpu_alloc_mipmaps(int level, texture *tex) {
+-	// Getting current mipmap count in passed texture
+-	int count = tex->mip_count - 1;
+-
+-	// Checking if we need at least one more new mipmap level
+-	if ((level > count) || (level < 0)) { // Note: level < 0 means we will use max possible mipmaps level
+-
+-		// Getting textures info and calculating bpp
+-		SceGxmTextureFormat format = vglGetTexFormat(&tex->gxm_tex);
+-		uint32_t bpp = tex_format_to_bytespp(format);
+-		uint32_t orig_w, orig_h;
+-		vglGetTexSizes(&tex->gxm_tex, &orig_w, &orig_h);
+-		uint32_t w = nearest_po2(orig_w);
+-		uint32_t h = nearest_po2(orig_h);
+-
+-		// Calculating new texture data buffer size
+-		uint32_t jumps[16];
+-		uint32_t size = 0;
+-		if (level < 0 || count <= 0) {
+-			int mips = 0;
+-			while ((w > 1) && (h > 1)) {
+-				jumps[mips] = MAX(w, 8) * h * bpp;
+-				size += jumps[mips];
+-				w /= 2;
+-				h /= 2;
+-				mips++;
+-			}
+-			jumps[mips] = MAX(w, 8) * h * bpp;
+-			size += jumps[mips];
+-			if (level < 0)
+-				level = mips;
+-			else
+-				level++;
+-		} else {
+-			for (int j = 0; j < level; j++) {
+-				jumps[j] = MAX(w, 8) * h * bpp;
+-				w /= 2;
+-				h /= 2;
++static uint32_t mip_dimension(uint32_t dimension, int level) {
++	while (level-- > 0 && dimension > 1)
++		dimension >>= 1;
++	return MAX(dimension, 1);
++}
++
++static uint32_t mip_chain_size(uint32_t width, uint32_t height, int levels, uint32_t bpp) {
++	uint32_t size = 0;
++	for (int i = 0; i < levels; i++) {
++		size += VGL_ALIGN(width, 8) * height * bpp;
++		width = MAX(width >> 1, 1);
++		height = MAX(height >> 1, 1);
++	}
++	return size;
++}
++
++void gpu_upload_mipmap_level(int level, uint32_t w, uint32_t h, const void *data, texture *tex, uint8_t src_bpp, uint32_t (*read_cb)(void *), void (*write_cb)(void *, uint32_t), GLboolean fast_store) {
++	if (level <= 0 || level >= 16 || tex->status != TEX_VALID)
++		return;
++
++	SceGxmTextureFormat format = vglGetTexFormat(&tex->gxm_tex);
++	uint32_t bpp = tex_format_to_bytespp(format);
++	uint32_t orig_w, orig_h;
++	vglGetTexSizes(&tex->gxm_tex, &orig_w, &orig_h);
++	if (!bpp || w != mip_dimension(orig_w, level) || h != mip_dimension(orig_h, level))
++		return;
++	if (data && fast_store && src_bpp != bpp)
++		return;
++	if (data && !fast_store && (!read_cb || !write_cb))
++		return;
++
++	uint32_t level_offset = mip_chain_size(orig_w, orig_h, level, bpp);
++	int mip_count = MAX(tex->mip_count, level + 1);
++	uint32_t old_size = mip_chain_size(orig_w, orig_h, tex->mip_count, bpp);
++	uint32_t required_size = mip_chain_size(orig_w, orig_h, mip_count, bpp);
++	void *texture_data = vgl_realloc(tex->data, required_size);
++	if (!texture_data) {
++		texture_data = gpu_alloc_mapped_for_gpu(required_size);
++		if (!texture_data)
++			return;
++		vgl_fast_memcpy(texture_data, tex->data, old_size);
++		vgl_memset((uint8_t *)texture_data + old_size, 0, required_size - old_size);
++		gpu_free_texture_data(tex);
++	} else if (required_size > old_size) {
++		vgl_memset((uint8_t *)texture_data + old_size, 0, required_size - old_size);
++	}
++
++	uint8_t *dst = (uint8_t *)texture_data + level_offset;
++	uint32_t dst_stride = VGL_ALIGN(w, 8) * bpp;
++	if (!data) {
++		vgl_memset(dst, 0, dst_stride * h);
++	} else if (fast_store) {
++		const uint8_t *src = (const uint8_t *)data;
++		uint32_t src_stride = w * bpp;
++		for (uint32_t y = 0; y < h; y++) {
++			vgl_fast_memcpy(dst + y * dst_stride, src + y * src_stride, src_stride);
++		}
++	} else if (read_cb && write_cb) {
++		const uint8_t *src = (const uint8_t *)data;
++		for (uint32_t y = 0; y < h; y++) {
++			uint8_t *dst_pixel = dst + y * dst_stride;
++			for (uint32_t x = 0; x < w; x++) {
++				write_cb(dst_pixel, read_cb((void *)src));
++				src += src_bpp;
++				dst_pixel += bpp;
+ 			}
+-			level++;
+ 		}
++	}
+ 
+-		// Calculating needed sceGxmTransfer format for the downscale process
+-		SceGxmTransferFormat fmt = tex_format_to_transfer(format);
++	tex->data = texture_data;
++	tex->mip_count = mip_count;
++	vglInitLinearTexture(&tex->gxm_tex, texture_data, format, orig_w, orig_h, tex->use_mips ? tex->mip_count : 0);
++	tex->palette_data = NULL;
++	tex->status = TEX_VALID;
++#ifndef TEXTURES_SPEEDHACK
++	tex->last_frame = OBJ_NOT_USED;
++#endif
++#ifdef HAVE_TEX_CACHE
++	mark_as_cacheable(tex)
++#endif
++}
+ 
+-		// Reallocating texture with full mipchain size
+-		void *texture_data = count <= 0 ? vgl_realloc(tex->data, size) : tex->data;
+-		if (count <= 0 && !texture_data) {
+-			// Reallocation in the same mspace failed, try manually.
+-			texture_data = gpu_alloc_mapped_for_gpu(size);
+-			vgl_memcpy(texture_data, tex->data, VGL_ALIGN(orig_w, 8) * orig_h * bpp);
+-			gpu_free_texture_data(tex);
+-		}
++void gpu_alloc_mipmaps(int level, texture *tex) {
++	int current_levels = tex->mip_count;
++	if (level >= 0 && level + 1 <= current_levels)
++		return;
++
++	SceGxmTextureFormat format = vglGetTexFormat(&tex->gxm_tex);
++	uint32_t bpp = tex_format_to_bytespp(format);
++	uint32_t orig_w, orig_h;
++	vglGetTexSizes(&tex->gxm_tex, &orig_w, &orig_h);
++	if (!bpp || !orig_w || !orig_h)
++		return;
++
++	int levels = 1;
++	uint32_t width = orig_w, height = orig_h;
++	while ((width > 1 || height > 1) && levels < 16) {
++		width = MAX(width >> 1, 1);
++		height = MAX(height >> 1, 1);
++		levels++;
++	}
++	if (level >= 0)
++		levels = MIN(level + 1, levels);
++	if (levels <= current_levels && level >= 0)
++		return;
++
++	uint32_t offsets[16];
++	uint32_t size = 0;
++	width = orig_w;
++	height = orig_h;
++	for (int i = 0; i < levels; i++) {
++		offsets[i] = size;
++		size += VGL_ALIGN(width, 8) * height * bpp;
++		width = MAX(width >> 1, 1);
++		height = MAX(height >> 1, 1);
++	}
+ 
+-		// Performing a chain downscale process to generate requested mipmaps
+-		uint8_t *curPtr = (uint8_t *)texture_data;
+-		uint32_t curWidth = orig_w;
+-		uint32_t curHeight = orig_h;
+-		if (curWidth % 2)
+-			curWidth--;
+-		if (curHeight % 2)
+-			curHeight--;
+-		for (int j = 0; j < level - 1; j++) {
+-			if (curWidth <= 1 || curHeight <= 1)
+-				break;
+-			uint32_t curSrcStride = VGL_ALIGN(curWidth, 8);
+-			uint32_t curDstStride = VGL_ALIGN(curWidth >> 1, 8);
+-			uint8_t *dstPtr = curPtr + jumps[j];
+-			if (curWidth <= 1024 && curHeight <= 1024) {
+-				sceGxmTransferDownscale(
+-					fmt, curPtr, 0, 0,
+-					curWidth, curHeight,
+-					curSrcStride * bpp,
+-					fmt, dstPtr, 0, 0,
+-					curDstStride * bpp,
+-					NULL, 0, NULL);
+-			} else { // sceGxmTransferDownscale doesn't support higher sizes, so we go for CPU downscaling
+-				for (int y = 0, y2 = 0; y < curHeight; y += 2, y2++) {
+-					uint8_t *srcLine = curPtr + curSrcStride * bpp * y;
+-					uint8_t *dstLine = dstPtr + curDstStride * bpp * y2;
+-					for (int x = 0, x2 = 0; x < curWidth; x += 2, x2++) {
+-						sceClibMemcpy(dstLine + x2 * bpp, srcLine + x * bpp, bpp);
+-					}
++	uint32_t old_size = mip_chain_size(orig_w, orig_h, MIN(current_levels, levels), bpp);
++	void *texture_data = vgl_realloc(tex->data, size);
++	if (!texture_data) {
++		texture_data = gpu_alloc_mapped_for_gpu(size);
++		if (!texture_data)
++			return;
++		vgl_fast_memcpy(texture_data, tex->data, old_size);
++		vgl_memset((uint8_t *)texture_data + old_size, 0, size - old_size);
++		gpu_free_texture_data(tex);
++	} else if (size > old_size) {
++		vgl_memset((uint8_t *)texture_data + old_size, 0, size - old_size);
++	}
++
++	SceGxmTransferFormat fmt = tex_format_to_transfer(format);
++	uint32_t cur_width = orig_w, cur_height = orig_h;
++	for (int mip = 1; mip < levels; mip++) {
++		uint32_t next_width = MAX(cur_width >> 1, 1);
++		uint32_t next_height = MAX(cur_height >> 1, 1);
++		uint32_t src_stride = VGL_ALIGN(cur_width, 8);
++		uint32_t dst_stride = VGL_ALIGN(next_width, 8);
++		uint8_t *src = (uint8_t *)texture_data + offsets[mip - 1];
++		uint8_t *dst = (uint8_t *)texture_data + offsets[mip];
++		if (cur_width <= 1024 && cur_height <= 1024 && cur_width > 1 && cur_height > 1) {
++			int result = sceGxmTransferDownscale(fmt, src, 0, 0, cur_width, cur_height, src_stride * bpp,
++				fmt, dst, 0, 0, dst_stride * bpp, NULL, 0, NULL);
++			if (result == 0)
++				goto mip_generated;
++			vgl_log("sceGxmTransferDownscale failed for mip %d (%d); using CPU fallback.\n", mip, result);
++		}
++		{
++			for (uint32_t y = 0; y < next_height; y++) {
++				uint32_t src_y = MIN(y * 2, cur_height - 1);
++				uint8_t *src_line = src + src_stride * bpp * src_y;
++				uint8_t *dst_line = dst + dst_stride * bpp * y;
++				for (uint32_t x = 0; x < next_width; x++) {
++					uint32_t src_x = MIN(x * 2, cur_width - 1);
++					sceClibMemcpy(dst_line + x * bpp, src_line + src_x * bpp, bpp);
+ 				}
+ 			}
+-			curPtr = dstPtr;
+-			curWidth /= 2;
+-			curHeight /= 2;
+ 		}
++	mip_generated:
++		cur_width = next_width;
++		cur_height = next_height;
++	}
+ 
+-		// Initializing texture in sceGxm
+-		tex->mip_count = level;
+-		vglInitLinearTexture(&tex->gxm_tex, texture_data, format, orig_w, orig_h, tex->use_mips ? tex->mip_count : 0);
+-		tex->palette_data = NULL;
+-		tex->status = TEX_VALID;
+-		tex->data = texture_data;
++	tex->mip_count = levels;
++	tex->data = texture_data;
++	vglInitLinearTexture(&tex->gxm_tex, texture_data, format, orig_w, orig_h, tex->use_mips ? levels : 0);
++	tex->palette_data = NULL;
++	tex->status = TEX_VALID;
+ #ifndef TEXTURES_SPEEDHACK
+-		tex->last_frame = OBJ_NOT_USED;
++	tex->last_frame = OBJ_NOT_USED;
+ #endif
+ #ifdef HAVE_TEX_CACHE
+-		mark_as_cacheable(tex)
++	mark_as_cacheable(tex)
+ #endif
+-	}
+ }
+ 
+ void gpu_free_palette(void *pal) {
+diff --git a/source/utils/gpu_utils.h b/source/utils/gpu_utils.h
+index 8abf57b..f6774c3 100644
+--- a/source/utils/gpu_utils.h
++++ b/source/utils/gpu_utils.h
+@@ -217,4 +217,7 @@ void gpu_free_palette(void *pal);
+ // Generate mipmaps for a given texture
+ void gpu_alloc_mipmaps(int level, texture *tex);
+ 
++// Upload one user-provided mip level without regenerating other levels.
++void gpu_upload_mipmap_level(int level, uint32_t w, uint32_t h, const void *data, texture *tex, uint8_t src_bpp, uint32_t (*read_cb)(void *), void (*write_cb)(void *, uint32_t), GLboolean fast_store);
++
+ #endif

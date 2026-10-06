@@ -109,6 +109,36 @@ static void probe_check(Probe *p, const char *name, int x, int y, int r, int g, 
         name, ok ? "PASS" : "FAIL", pixel[0], pixel[1], pixel[2], pixel[3], r, g, b, (unsigned)error);
 }
 
+/* Disable blending for this readback: a zero-alpha sample must not be
+   indistinguishable from a quad that never touched the blue framebuffer. */
+static void probe_raw_check(Probe *p, const char *name, int r, int g, int b, int a) {
+    unsigned char pixel[4] = {0};
+    glReadPixels(4, 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+    GLenum error = glGetError();
+    int ok = error == GL_NO_ERROR && abs((int)pixel[0]-r) <= 8 &&
+        abs((int)pixel[1]-g) <= 8 && abs((int)pixel[2]-b) <= 8 &&
+        abs((int)pixel[3]-a) <= 8;
+    if (ok) p->passed++; else p->failed++;
+    vita_log("GPU PROBE %s %s rgba=%u,%u,%u,%u expected_rgba=%d,%d,%d,%d error=0x%x\n",
+        name, ok ? "PASS" : "FAIL", pixel[0], pixel[1], pixel[2], pixel[3], r, g, b, a, (unsigned)error);
+}
+
+static void probe_upload_bytes(const unsigned char *block, int bytes, int format) {
+#ifdef OPENUG2_VITA
+    /* A 4x4 DXT image contains one block, so swizzling cannot reorder it.
+       This diagnostic observes the backend buffer without accepting pixels
+       based on its contents. The GPU readback remains the pass criterion. */
+    glFinish();
+    const unsigned char *stored = vglGetTexDataPointer(GL_TEXTURE_2D);
+    vita_log("GPU UPLOAD dxt%d one_block_bytes=%d matches_source=%d stored=", format, bytes,
+        stored && memcmp(stored, block, (size_t)bytes) == 0);
+    if (stored) for (int i = 0; i < bytes; i++) vita_log("%02x", stored[i]);
+    vita_log("\n");
+#else
+    (void)block; (void)bytes; (void)format;
+#endif
+}
+
 static void probe_clear(void) {
     glClearColor(0, 0, 1, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -137,7 +167,9 @@ static void probe_dxt(Probe *p, int format, int native) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); probe_draw(p, 1, 1, 1, 1, 0);
     probe_check(p, name, 4, 4, alpha[0], 0, 255-alpha[0]); glDisable(GL_BLEND);
     if (!native) {
-        p->unsupported++; vita_log("GPU PROBE dxt%d_native UNSUPPORTED capability_not_advertised\n", format); return;
+        p->unsupported += 2;
+        vita_log("GPU PROBE dxt%d_native_raw UNSUPPORTED capability_not_advertised\n", format);
+        vita_log("GPU PROBE dxt%d_native UNSUPPORTED capability_not_advertised\n", format); return;
     }
     GLenum type = format == 1 ? GL_COMPRESSED_RGBA_S3TC_DXT1_EXT :
         format == 3 ? GL_COMPRESSED_RGBA_S3TC_DXT3_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
@@ -146,6 +178,10 @@ static void probe_dxt(Probe *p, int format, int native) {
     if (error) {
         p->failed++; vita_log("GPU PROBE dxt%d_native FAIL upload_error=0x%x\n", format, (unsigned)error); return;
     }
+    probe_upload_bytes(block, bytes, format);
+    glDisable(GL_BLEND); probe_clear(); probe_draw(p, 1, 1, 1, 1, 0);
+    snprintf(name, sizeof name, "dxt%d_native_raw", format);
+    probe_raw_check(p, name, 255, 0, 0, alpha[0]);
     probe_clear(); glEnable(GL_BLEND); probe_draw(p, 1, 1, 1, 1, 0);
     snprintf(name, sizeof name, "dxt%d_native", format);
     probe_check(p, name, 4, 4, alpha[0], 0, 255-alpha[0]); glDisable(GL_BLEND);
@@ -192,9 +228,14 @@ static void probe_dxt1_cutout(Probe *p, int native) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); probe_draw(p, 1, 1, 1, 1, 0);
     probe_check(p, "dxt1_cutout_rgba", 4, 4, 0, 0, 255); glDisable(GL_BLEND);
     if (!native) {
-        p->unsupported++; vita_log("GPU PROBE dxt1_cutout_native UNSUPPORTED capability_not_advertised\n"); return;
+        p->unsupported += 2;
+        vita_log("GPU PROBE dxt1_cutout_native_raw UNSUPPORTED capability_not_advertised\n");
+        vita_log("GPU PROBE dxt1_cutout_native UNSUPPORTED capability_not_advertised\n"); return;
     }
     glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, 4, 4, 0, sizeof block, block);
+    probe_upload_bytes(block, sizeof block, 1);
+    glDisable(GL_BLEND); probe_clear(); probe_draw(p, 1, 1, 1, 1, 0);
+    probe_raw_check(p, "dxt1_cutout_native_raw", 0, 0, 0, 0);
     probe_clear(); glEnable(GL_BLEND); probe_draw(p, 1, 1, 1, 1, 0);
     probe_check(p, "dxt1_cutout_native", 4, 4, 0, 0, 255); glDisable(GL_BLEND);
 }
