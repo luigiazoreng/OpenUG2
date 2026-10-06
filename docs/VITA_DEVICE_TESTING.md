@@ -232,3 +232,24 @@ Ele reutiliza os mesmos arquivos previamente verificados e associa como
 baseline o hash do primeiro log; não houve nova transferência ou mudança de
 VPK. A próxima coleta nesse diretório exigirá um log diferente e repetirá a
 conferência dos artefatos armazenados no Vita.
+
+### Segunda coleta — controles parcialmente observados
+
+`vita-controls-a7476a78/collection-cf206d99/` preserva o novo log e
+`input-summary.json`. Há evidência de analógico esquerdo (`steer` até 0,77),
+L (`brake=1`) e Cross (`nitro_confirm=1`, duas novas leituras do parser).
+Não há amostras ativas de R ou Square, nem mensagens de pausa/ação Triangle.
+Isso não comprova falha de mapeamento: os estados mantidos são amostrados
+uma vez por segundo e podem perder pressões curtas.
+
+O usuário informou não perceber mudança ao pressionar botões/analógico.
+Esses controles não movimentam o triângulo neste bootstrap. Cross apenas
+refaz o parser; L/R/Square/analógico alimentam o log e Triangle registra
+a ação sem câmera. **START deve mudar a área branca do triângulo para um
+tom amarelado**, alternando a componente azul entre 1 e 0,3; pressione-o
+novamente para retornar. Esse efeito deve ser verificado separadamente.
+
+Também falta `shutdown complete` no segundo log. Não foi estabelecida a
+causa (por exemplo, troca de aplicativo, encerramento externo ou dificuldade
+com a combinação). O caso permanece pendente até testar SELECT+START e
+recolher a saída limpa. A primeira saída limpa já registrada é preservada.
