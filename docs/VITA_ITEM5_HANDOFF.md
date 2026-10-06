@@ -1,5 +1,11 @@
 # Handoff — engine e integração Vita até o item 5
 
+A sessão do perfil estático compilou o shader e passou DXT nativo. O app
+encerrou controladamente por duas falhas de mipmap, com 17 testes aprovados.
+A coleta e os novos testes para separar mipmap de viewport mínimo estão em
+[VITA_MIP_DIAGNOSTICS.md](VITA_MIP_DIAGNOSTICS.md). O carro ainda não renderizou
+no console; as falhas permanecem fatais.
+
 O reteste com precedência corrigida ainda atingiu timeout no fragment shader.
 A nova variante de materiais para o viewer, sua comparação visual com a
 engine completa e a classificação separada da coleta estão em
