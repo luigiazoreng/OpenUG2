@@ -68,3 +68,23 @@ A homologação física exige nova sessão identificada, suite sem falhas,
 carro pronto, frames renderizados e saída normal. Aparência, quatro rodas,
 texturas e controles precisam de observação manual. Não há publicação de
 issue ou PR nesta etapa.
+
+## Pacote preparado em 2026-10-06
+
+Build limpo em `fbf9c1a295885f65735cb16b9778711948f5dff9`, com nove unidades C,
+`-Wall -Wextra -Werror` e zero warnings. Pico do build da biblioteca: 358,5 MiB;
+do aplicativo: 96,1 MiB. Ambos terminaram com sucesso sob limite de 384 MiB.
+Os avisos preexistentes da receita C++ da dependência estão preservados no log.
+
+- vitaGL: `30425e409c2e86dace9e52578867495281ee470998b1802db5b7cba850e5e0f5`
+- VPK: `00adec6794143afd7fdb1576accec0141b425457a320dd57f3b7c9d5e4e780c4`
+- eboot: `99d07c85b63db0a99b353335b3e84796f6a82ee0aa9fed69071b07505e0610b5`
+- Sessão: `e3536f9548bd4049acc17d81`
+
+Bundle privado:
+`nfsu2-data/vita/stock-240sx-gl-compat-2026-10-06/ready/`.
+VPK e configuração foram transferidos para `ux0:data/openug2/`; os três
+assets coincidentes foram preservados. Os cinco arquivos passaram readback
+após sync e o volume USB foi desmontado. Instalar `car-viewer.vpk` no
+VitaShell e executar a aplicação; instalação e execução ainda dependem do
+usuário. **Estado: preparado e transferido, aguardando reteste físico.**
