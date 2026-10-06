@@ -46,3 +46,14 @@ Relatórios privados:
 O mesmo archive privado de vitaGL é usado. Sem publicação de issue ou PR.
 Estado: diagnóstico host validado; reteste físico pendente. O carro e o
 shader completo do cenário continuam sem homologação física.
+
+## Empacotamento do SDK
+
+O primeiro ELF compilou, mas `vita-elf-create` pediu 4.176 bytes para
+metadados SCE; a folga entre os segmentos era de apenas 3.656 bytes.
+O linker `armvita` deste SDK oferece `__sce_headroom`: o target agora
+reserva 8 KiB antes de alinhar o segmento gravável a 64 KiB. Isso ajusta
+o layout, sem aumentar o limite de RAM do build ou mudar a biblioteca.
+O diagnóstico original e seu log de falha são preservados no relatório
+privado. O [empacotador oficial](https://github.com/vitasdk/vita-toolchain/blob/master/src/vita-elf-create/sce-elf.c)
+verifica essa sobreposição antes de acrescentar os metadados ao segmento.
