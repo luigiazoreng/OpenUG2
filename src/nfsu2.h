@@ -3639,10 +3639,17 @@ static N2Tpk n2_tpk_open(const unsigned char *d, long len) {
             ph = i + 8; phs = n2_u32(d + i + 4);
         } else if (ph >= 0 && d[i]==0x02 && d[i+1]==0x00 && d[i+2]==0x32 && d[i+3]==0x33) {
             long pbase = i + 8, room = len - pbase;       /* pixels 0x33320002 */
+            /* phs is file-controlled and may exceed LONG_MAX on Vita. Check
+               it against the remaining file in unsigned wide arithmetic
+               before converting it or forming hbeg + hsize. */
+            if (ph < 0 || ph > len || (uint64_t)phs > (uint64_t)(len - ph)) {
+                ph = -1;
+                continue;
+            }
             if (room > 0x40000000) room = 0x40000000;
             if (t.nblk == cap) { cap = cap ? cap*2 : 64;
                 t.blk = (N2TpkBlk *)realloc(t.blk, (size_t)cap*sizeof(N2TpkBlk)); }
-            t.blk[t.nblk].hbeg = ph; t.blk[t.nblk].hsize = phs;
+            t.blk[t.nblk].hbeg = ph; t.blk[t.nblk].hsize = (long)phs;
             t.blk[t.nblk].dbase = pbase + n2_skip_filler(d + pbase, (int)room);
             t.nblk++; ph = -1;
         }
@@ -3693,6 +3700,9 @@ static int n2_tpk_decode(const unsigned char *d, long len, N2Tpk t, uint32_t has
         for (long i = hbeg; i + 0x40 < hend; i++) {
             if (!(d[i] >= 'A' && d[i] <= 'Z')) continue;
             if (n2_u32(d + i + 0x18) != hash) continue;
+            /* A previous matching record can be rejected after setting
+               draw metadata. Every candidate starts from clean output state. */
+            memset(tex, 0, sizeof *tex);
             uint32_t off = n2_u32(d + i + 0x24), paloff = n2_u32(d + i + 0x28);
             uint32_t palsz = n2_u32(d + i + 0x30);   /* Size (+0x2c) no longer read here --
                                                           format now comes from the +0x3e tag */
