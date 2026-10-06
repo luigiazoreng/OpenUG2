@@ -198,6 +198,7 @@ int render_road_reflections(const RProg *r,RoadReflections *s,
 #ifdef N2_GLES
     /* ES2 does not guarantee depth-buffer copies; keep the wet sky/lamp
        fallback. Add an offscreen depth-texture target for a GLES backend. */
+    (void)r; (void)batches; (void)cam; (void)mvp; (void)projection;
     s->failed=1;return -1;
 #else
     int nearby=0;
@@ -260,7 +261,9 @@ int render_road_reflections(const RProg *r,RoadReflections *s,
     glUniformMatrix4fv(r->uMVP,1,GL_FALSE,matrix);glUniformMatrix4fv(r->uModel,1,GL_FALSE,model);
     glUniform4fv(r->uReflectionParams,1,params);
     glDepthFunc(df);glDepthMask(mask);if(!depth)glDisable(GL_DEPTH_TEST);
-    if(!blend)glDisable(GL_BLEND);if(cull)glEnable(GL_CULL_FACE);if(offset)glEnable(GL_POLYGON_OFFSET_FILL);
+    if(!blend)glDisable(GL_BLEND);
+    if(cull)glEnable(GL_CULL_FACE);
+    if(offset)glEnable(GL_POLYGON_OFFSET_FILL);
     glBlendFuncSeparate(sr,dr,sa,da);
     for(int i=0;i<3;i++){glActiveTexture(units[i]);glBindTexture(GL_TEXTURE_2D,bindings[i]);}
     glActiveTexture(active);
@@ -522,7 +525,8 @@ int render_rain_vertices(float time,float intensity,int quality,float aspect,Rai
     if(!out || !isfinite(time) || time<0 || !isfinite(intensity) || intensity<=0 ||
        !isfinite(aspect) || aspect<=0)return 0;
     if(intensity>1)intensity=1;
-    if(quality<0)quality=0; if(quality>2)quality=2;
+    if(quality<0)quality=0;
+    if(quality>2)quality=2;
     int n=0,count=12<<quality;
     static const unsigned char corner[6][2]={{0,0},{1,0},{1,1},{0,0},{1,1},{0,1}};
     for(int i=0;i<count;i++) {
@@ -579,7 +583,8 @@ int render_rain(const RProg *r,GLuint *vbo,float time,float intensity,int qualit
     for(int i=0;i<7;i++)glUniform1f(loc[i],saved[i]);
     glUniformMatrix4fv(r->uMVP,1,GL_FALSE,matrix);
     glDepthMask(mask);if(depth)glEnable(GL_DEPTH_TEST);
-    if(!blend)glDisable(GL_BLEND);if(cull)glEnable(GL_CULL_FACE);
+    if(!blend)glDisable(GL_BLEND);
+    if(cull)glEnable(GL_CULL_FACE);
     glBlendFuncSeparate(sr,dr,sa,da);
     return 1;
 }
@@ -1381,7 +1386,8 @@ static void batch_members_report(const N2Scene *s, const BSortEnt *ent, int i0, 
         for (int v = 0; v < m->nverts; v++)
             for (int c = 0; c < 3; c++) {
                 float p = m->verts[v*5+c];
-                if (p < mn[c]) mn[c] = p; if (p > mx[c]) mx[c] = p;
+                if (p < mn[c]) mn[c] = p;
+                if (p > mx[c]) mx[c] = p;
             }
     }
     printf("bounds        x[%.1f %.1f] y[%.1f %.1f] z[%.1f %.1f]\n",
@@ -1394,7 +1400,8 @@ static void batch_members_report(const N2Scene *s, const BSortEnt *ent, int i0, 
         for (int v = 0; v < m->nverts; v++)
             for (int c = 0; c < 3; c++) {
                 float p = m->verts[v*5+c];
-                if (p < a[c]) a[c] = p; if (p > b[c]) b[c] = p;
+                if (p < a[c]) a[c] = p;
+                if (p > b[c]) b[c] = p;
             }
         char bb[64];
         snprintf(bb, sizeof bb, "[%.0f %.0f][%.0f %.0f][%.1f %.1f]",
@@ -1456,13 +1463,20 @@ static void batch_audit_report(const N2Scene *s, const BSortEnt *ent, int i0, in
               const float *p = m->verts + v*5;
               const BatchedVertex *o = &bv[vo + v];
               if (memcmp(o->uv, p + 3, 2*sizeof(float))) bad_uv++;
-              if (p[3]<su0)su0=p[3]; if (p[3]>su1)su1=p[3];
-              if (p[4]<sv0)sv0=p[4]; if (p[4]>sv1)sv1=p[4];
-              if (o->uv[0]<bu0)bu0=o->uv[0]; if (o->uv[0]>bu1)bu1=o->uv[0];
-              if (o->uv[1]<bv0)bv0=o->uv[1]; if (o->uv[1]>bv1)bv1=o->uv[1];
-              if (p[0]<x0)x0=p[0]; if (p[0]>x1)x1=p[0];
-              if (p[1]<y0)y0=p[1]; if (p[1]>y1)y1=p[1];
-              if (p[2]<z0)z0=p[2]; if (p[2]>z1)z1=p[2];
+              if (p[3]<su0)su0=p[3];
+              if (p[3]>su1)su1=p[3];
+              if (p[4]<sv0)sv0=p[4];
+              if (p[4]>sv1)sv1=p[4];
+              if (o->uv[0]<bu0)bu0=o->uv[0];
+              if (o->uv[0]>bu1)bu1=o->uv[0];
+              if (o->uv[1]<bv0)bv0=o->uv[1];
+              if (o->uv[1]>bv1)bv1=o->uv[1];
+              if (p[0]<x0)x0=p[0];
+              if (p[0]>x1)x1=p[0];
+              if (p[1]<y0)y0=p[1];
+              if (p[1]>y1)y1=p[1];
+              if (p[2]<z0)z0=p[2];
+              if (p[2]>z1)z1=p[2];
           }
           printf("texkey                           %08x\n", m->texkey);
           printf("source UV  min/max               u[%.4f %.4f] v[%.4f %.4f]  span %.3f x %.3f\n",
@@ -1908,7 +1922,8 @@ static void mesh_indexed_center(const N2Mesh *m,float center[3]) {
     float lo[3]={1e30f,1e30f,1e30f},hi[3]={-1e30f,-1e30f,-1e30f};
     for(int j=0;j<m->nidx;j++)for(int a=0;a<3;a++) {
         float v=m->verts[m->idx[j]*5+a];
-        if(v<lo[a])lo[a]=v;if(v>hi[a])hi[a]=v;
+        if(v<lo[a])lo[a]=v;
+        if(v>hi[a])hi[a]=v;
     }
     for(int a=0;a<3;a++)center[a]=(lo[a]+hi[a])*.5f;
 }
@@ -2019,7 +2034,8 @@ GLuint upload_tpk_texture_to_gpu(const N2Tex *t) {
             glCompressedTexImage2D(GL_TEXTURE_2D, level, fmt, lw, lh, 0, sz, t->dxt + off);
             off += sz; level++;
             if (lw == 1 && lh == 1) { complete = 1; break; }
-            if (lw > 1) lw /= 2; if (lh > 1) lh /= 2;
+            if (lw > 1) lw /= 2;
+            if (lh > 1) lh /= 2;
         }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

@@ -48,7 +48,9 @@ int res_list_cars(const char *dataroot, char (*list)[64], int max,
         "WHEELS","SPOILER","SPOILER_HATCH","SPOILER_SUV","MIRRORS_BODY",
         "MIRRORS_HUMMER","MIRRORS_POST","MIRRORS_SUV" };
     int n = 0;
-    char croot[1024]; snprintf(croot, sizeof croot, "%s/CARS", dataroot);
+    char croot[1024];
+    int root_length = snprintf(croot, sizeof croot, "%s/CARS", dataroot);
+    if (root_length < 0 || (size_t)root_length >= sizeof croot) return 0;
     DIR *cd = opendir(croot); struct dirent *de;
     while (cd && n < max && (de = readdir(cd))) {
         if (de->d_name[0] == '.') continue;
@@ -56,7 +58,9 @@ int res_list_cars(const char *dataroot, char (*list)[64], int max,
         for (unsigned p = 0; p < sizeof parts/sizeof parts[0]; p++)
             if (!strcmp(de->d_name, parts[p])) isp = 1;
         if (isp) continue;
-        char gp[1200]; snprintf(gp, sizeof gp, "%s/%s/GEOMETRY.BIN", croot, de->d_name);
+        char gp[1200];
+        int length = snprintf(gp, sizeof gp, "%s/%s/GEOMETRY.BIN", croot, de->d_name);
+        if (length < 0 || (size_t)length >= sizeof gp) continue;
         FILE *f = fopen(gp, "rb"); if (!f) continue; fclose(f);
         int L = (int)strlen(de->d_name); if (L > 63) L = 63;
         memcpy(list[n], de->d_name, L); list[n][L] = 0;
@@ -73,22 +77,33 @@ int res_list_circuits(const char *troot, const char *trackname,
     if (!trackname || !strcmp(trackname, "ALL")) return 0;
     /* the shipped 1:1 mapping: STREAM<stem>.BUN <-> ROUTES<stem>/ */
     const char *stem = strncmp(trackname, "STREAM", 6) ? trackname : trackname + 6;
-    char dname[256]; snprintf(dname, sizeof dname, "ROUTES%s", stem);
-    char rdir[1200]; snprintf(rdir, sizeof rdir, "%s/%s", troot, dname);
+    char dname[256];
+    int directory_length = snprintf(dname, sizeof dname, "ROUTES%s", stem);
+    if (directory_length < 0 || (size_t)directory_length >= sizeof dname) return 0;
+    char rdir[1200];
+    directory_length = snprintf(rdir, sizeof rdir, "%s/%s", troot, dname);
+    if (directory_length < 0 || (size_t)directory_length >= sizeof rdir) return 0;
 
     int n = 0;
     DIR *rd = opendir(rdir); struct dirent *re;
     while (rd && n < max && (re = readdir(rd))) {
         if (strncmp(re->d_name, "Paths", 5)) continue;
-        char rel[256]; snprintf(rel, sizeof rel, "%s/%s", dname, re->d_name);
+        char rel[256];
+        int length = snprintf(rel, sizeof rel, "%s/%s", dname, re->d_name);
+        if (length < 0 || (size_t)length >= sizeof rel) continue;
         int dup=0; for (int i=0;i<n;i++) if(!strcmp(list[i],rel)) dup=1;
         if (dup) continue;
-        char pp[1500]; snprintf(pp, sizeof pp, "%s/%s", troot, rel);
+        char pp[1500];
+        int path_length = snprintf(pp, sizeof pp, "%s/%s", troot, rel);
+        if (path_length < 0 || (size_t)path_length >= sizeof pp) continue;
         long pl; unsigned char *pd = n2_read_file(pp, &pl); N2Path tp = {0};
         if (pd && n2_load_path(pd, pl, &tp) > 4) {
             /* closed loop: first waypoint ~= last (sprints are open routes) */
             float dx=tp.xy[0]-tp.xy[(tp.n-1)*2], dy=tp.xy[1]-tp.xy[(tp.n-1)*2+1];
-            if (dx*dx+dy*dy < 900.0f) strncpy(list[n++], rel, 255);
+            if (dx*dx+dy*dy < 900.0f) {
+                memcpy(list[n], rel, (size_t)length + 1);
+                n++;
+            }
         }
         free(tp.xy); free(pd);
     }

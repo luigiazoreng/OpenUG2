@@ -148,6 +148,12 @@ world-group-test: tools/world_group_test.c src/world_group_reader.h
 	$(CC) $(CFLAGS) tools/world_group_test.c -o build/world_group_test
 	./build/world_group_test
 
+.PHONY: resource-test
+resource-test: tools/resource_test.c src/resource.c src/resource.h src/nfsu2.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Isrc tools/resource_test.c src/resource.c -o build/resource_test -lm
+	./build/resource_test
+
 world-group-audit: tools/world_group_audit.c src/world_group_reader.h src/world_scenery.h src/world_instance.c src/world_instance.h src/nfsu2.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) tools/world_group_audit.c -o build/world_group_audit -lm

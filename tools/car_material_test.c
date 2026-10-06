@@ -711,6 +711,7 @@ int texture_record_tests(void) {
         TexRec r = { "OPAQUE_TEST", 0x1001u, 0, (uint32_t)px.n, 0, 4, 4, 0,0,0,1, 0x22, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1001u, &tex);
+        free(t.blk);
         chk("T1 complete opaque record decodes", ok == 1);
         if (ok) {
             chk("T1 dimensions correct (4x4)", tex.w == 4 && tex.h == 4);
@@ -729,6 +730,7 @@ int texture_record_tests(void) {
         TexRec r = { "CUTOUT_TEST", 0x1002u, 0, (uint32_t)px.n, 0, 4, 4, 0,1,0,1, 0x22, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1002u, &tex);
+        free(t.blk);
         chk("T2 complete cutout record decodes", ok == 1);
         if (ok) {
             chk("T2 n2_tex_mode reports N2_DRAW_CUTOUT", n2_tex_mode(&tex) == N2_DRAW_CUTOUT);
@@ -747,6 +749,7 @@ int texture_record_tests(void) {
         TexRec r = { "BLEND_TEST", 0x1003u, 0, (uint32_t)px.n, 0, 4, 4, 5,2,1,0, 0x22, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1003u, &tex);
+        free(t.blk);
         chk("T3 complete blended record decodes", ok == 1);
         if (ok) { chk("T3 n2_tex_mode reports N2_DRAW_BLEND", n2_tex_mode(&tex) == N2_DRAW_BLEND);
                  free(tex.rgb); free(tex.alpha); free(tex.dxt); }
@@ -759,6 +762,7 @@ int texture_record_tests(void) {
         TexRec r = { "ADD_TEST", 0x1004u, 0, (uint32_t)px.n, 0, 4, 4, 5,2,2,0, 0x22, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1004u, &tex);
+        free(t.blk);
         chk("T4 complete additive record decodes", ok == 1);
         if (ok) { chk("T4 n2_tex_mode reports N2_DRAW_ADD", n2_tex_mode(&tex) == N2_DRAW_ADD);
                  free(tex.rgb); free(tex.alpha); free(tex.dxt); }
@@ -787,6 +791,7 @@ int texture_record_tests(void) {
         bu32(&tpk, 0x33320002u); bu32(&tpk, (uint32_t)px.n); bbytes(&tpk, px.b, px.n);
         N2Tpk t = n2_tpk_open(tpk.b, tpk.n);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, hash, &tex);
+        free(t.blk);
         chk("T5 truncated header (< 0x4c bytes): still decodes, no OOB read "
             "(verified clean under -fsanitize=address,undefined)", ok == 1);
         if (ok) { chk("T5 falls back to N2_DRAW_OPAQUE (order/usage/blend/wz unset)",
@@ -810,6 +815,7 @@ int texture_record_tests(void) {
                 break;
             }
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1006u, &tex);
+        free(t.blk);
         chk("T6 huge/invalid data offset rejected, no crash", ok == 0);
             }
 
@@ -830,6 +836,7 @@ int texture_record_tests(void) {
         TexRec r = { "DXT1_13X13", 0x1007u, 0, (uint32_t)px.n, 0, 13, 13, 0,0,0,1, 0x22, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1007u, &tex);
+        free(t.blk);
         chk("T7 DXT1 13x13 (non-multiple-of-4): decodes with the ceil-to-4 "
             "block count (4x4 blocks, 128 bytes)", ok == 1 && tex.w == 13 && tex.h == 13);
         if (ok) { free(tex.rgb); free(tex.alpha); free(tex.dxt); }
@@ -841,6 +848,7 @@ int texture_record_tests(void) {
         TexRec r2 = { "DXT1_13X13_SHORT", 0x1008u, 0, (uint32_t)px2.n, 0, 13, 13, 0,0,0,1, 0x22, px2.b, px2.n, 0 };
         N2Tpk t2 = build_tpk(&tpk2, &r2, 1);
         N2Tex tex2; int ok2 = n2_tpk_decode(tpk2.b, tpk2.n, t2, 0x1008u, &tex2);
+        free(t2.blk);
         chk("T7b one byte short of the required DXT1 block length is rejected",
             ok2 == 0);
     }
@@ -859,6 +867,7 @@ int texture_record_tests(void) {
         TexRec r = { "DXT3_6X6", 0x1009u, 0, (uint32_t)px.n, 0, 6, 6, 0,0,0,1, 0x24, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x1009u, &tex);
+        free(t.blk);
         chk("T8 DXT3 6x6 (non-multiple-of-4): decodes with the ceil-to-4 "
             "block count (2x2 blocks, 64 bytes -- not w*h/2=18)",
             ok == 1 && tex.w == 6 && tex.h == 6);
@@ -876,6 +885,7 @@ int texture_record_tests(void) {
         TexRec r3 = { "DXT3_6X6_OLD18", 0x100Au, 0, 40, 0, 6, 6, 0,0,0,1, 0x24, px3.b, 18, 0 };
         N2Tpk t3 = build_tpk(&tpk3, &r3, 1);
         N2Tex tex3; int ok3 = n2_tpk_decode(tpk3.b, tpk3.n, t3, 0x100Au, &tex3);
+        free(t3.blk);
         chk("T8b the old w*h/2 estimate (18 B) is correctly rejected for DXT3 "
             "(needs 64 B) -- this was a latent OOB read before M135", ok3 == 0);
             }
@@ -897,6 +907,7 @@ int texture_record_tests(void) {
            PaletteOffset (the palette), inside this same blob -- patch it. */
         patch_field(&tpk, t, 0x100Bu, 0x24, 1024);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x100Bu, &tex);
+        free(t.blk);
         chk("T9 P8 record decodes", ok == 1);
         if (ok) {
             chk("T9 afmt reports P8 (8)", tex.afmt == 8);
@@ -921,6 +932,7 @@ int texture_record_tests(void) {
         N2Tpk t = build_tpk(&tpk, &r, 1);
         patch_field(&tpk, t, 0x100Cu, 0x24, 1024);   /* see T9: Offset past the palette */
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x100Cu, &tex);
+        free(t.blk);
         chk("T10 fully-opaque P8 source decodes", ok == 1);
         if (ok) { chk("T10 alpha plane freed (fully opaque, unchanged M132-R2 rule)",
                       tex.alpha == NULL);
@@ -937,6 +949,7 @@ int texture_record_tests(void) {
         TexRec r = { "UNKNOWN_FMT", 0x100Du, 0, (uint32_t)px.n, 0, 4, 4, 0,0,0,1, 0x99, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x100Du, &tex);
+        free(t.blk);
         chk("T11 unknown format tag (0x99) rejected, not guessed at", ok == 0);
     }
 
@@ -953,6 +966,7 @@ int texture_record_tests(void) {
         N2Tpk t = build_tpk(&tpk, &r, 1);
         patch_field(&tpk, t, 0x100Eu, 0x24, 1024);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x100Eu, &tex);
+        free(t.blk);
         chk("T12 DXT1 tag contradicted by a real P8-sized palette: rejected",
             ok == 0);
     }
@@ -967,11 +981,13 @@ int texture_record_tests(void) {
         TexRec r = { "CONTRADICT_FMT2", 0x100Fu, 0, (uint32_t)px.n, 0, 4, 4, 0,0,0,1, 0x08, px.b, px.n, 0 };
         N2Tpk t = build_tpk(&tpk, &r, 1);
         N2Tex tex; int ok = n2_tpk_decode(tpk.b, tpk.n, t, 0x100Fu, &tex);
+        free(t.blk);
         chk("T13 P8 tag contradicted by PaletteSize=0: rejected", ok == 0);
     }
 
     return FAIL;
 }
+
 
 /* ---------------------------------------------------------------------
  * n2_sort_back_to_front (M135-R item 2): GL-free, drives the exact function
@@ -1659,7 +1675,53 @@ static void recursive_chunks_test(void) {
     n2_free_scene(&wrapped);
 }
 
+static void signed_file_bounds_test(void) {
+    Buf pixels = {.n = 0}, file;
+    dxt1_block(&pixels, 0xffff, 0, 0);
+    TexRec rec = {"BOUNDS_TEST", 0x1010, 0, 8, 0, 4, 4,
+                  0,0,0,1, 0x22, pixels.b, pixels.n, 0};
+    N2Tpk tpk = build_tpk(&file, &rec, 1);
+    N2Tex tex;
+    int ok = n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex);
+    chk("signed file bounds: valid DXT record still decodes", ok == 1);
+    if (ok) { free(tex.rgb); free(tex.alpha); free(tex.dxt); }
+    patch_field(&file, tpk, rec.hash, 0x24, UINT32_MAX);
+    chk("signed file bounds: u32 offset cannot wrap into the file",
+        n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+    tpk.blk[0].dbase = -1;
+    chk("signed file bounds: negative data base rejected",
+        n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+    tpk.blk[0].dbase = file.n + 1;
+    chk("signed file bounds: data base beyond EOF rejected",
+        n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+
+    free(tpk.blk);
+    pixels.n = 1040; memset(pixels.b, 0, (size_t)pixels.n);
+    rec.palsize = 1024; rec.fmt = 0x08; rec.pixels = pixels.b; rec.pixlen = pixels.n;
+    tpk = build_tpk(&file, &rec, 1);
+    patch_field(&file, tpk, rec.hash, 0x24, 1024);
+    patch_field(&file, tpk, rec.hash, 0x28, UINT32_MAX);
+    chk("signed file bounds: palette offset cannot wrap into the file",
+        n2_tpk_decode(file.b, file.n, tpk, rec.hash, &tex) == 0);
+    free(tpk.blk);
+
+    unsigned char object[16] = {0};
+    uint32_t magic = 0x80134010, size = 8;
+    memcpy(object, &magic, 4); memcpy(object + 4, &size, 4);
+    N2Audit audit = {0};
+    n2_audit_meshes(object, 0, sizeof object, &audit);
+    chk("signed file bounds: complete empty object can be audited", audit.nobj == 1);
+    size = UINT32_MAX; memcpy(object + 4, &size, 4);
+    memset(&audit, 0, sizeof audit);
+    n2_audit_meshes(object, 0, sizeof object, &audit);
+    chk("signed file bounds: oversized object stops before payload access", audit.nobj == 0);
+    memset(&audit, 0, sizeof audit);
+    n2_audit_meshes(object, -1, sizeof object, &audit);
+    chk("signed file bounds: negative audit start rejected", audit.nobj == 0);
+}
+
 int main(int argc,char **argv) {
+    signed_file_bounds_test();
     physics_attr_test();
     if(argc>1)real_car_table_test(argv[1]);
     recursive_chunks_test();

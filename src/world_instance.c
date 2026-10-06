@@ -427,7 +427,9 @@ static void winst_collect_models(WInstLibrary *library, const unsigned char *dat
 }
 
 static int chunk_end(long off, uint32_t size, long limit, long *end) {
-    if (off < 0 || off > limit || (long)size < 0) return 0;
+    if (off < 0 || off > limit) return 0;
+    /* The remaining signed-long range bounds size before its conversion,
+       including on platforms where long is 32 bits. */
     if ((uint64_t)size > (uint64_t)(limit - off)) return 0;
     *end = off + (long)size;
     return 1;

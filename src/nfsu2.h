@@ -475,7 +475,8 @@ static void n2_add_pair(const unsigned char *d, N2Leaf vtx, N2Leaf idx,
             if (corrupt) { vbad[i] = 1; nbad++; continue; }
             for (int c = 0; c < 3; c++) {
                 float v; memcpy(&v, rec + i*stride + c*4, 4);
-                if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v;
+                if (v < mn[c]) mn[c] = v;
+                if (v > mx[c]) mx[c] = v;
             }
         }
 #ifdef N2_NO_VERTEX_REPAIR
@@ -923,9 +924,12 @@ static void n2_m102_note(int why, const char *anm, int cat, int nslot, int nsub,
         float wx = px*mtx[0]+py*mtx[4]+pz*mtx[8] +mtx[12];
         float wy = px*mtx[1]+py*mtx[5]+pz*mtx[9] +mtx[13];
         float wz = px*mtx[2]+py*mtx[6]+pz*mtx[10]+mtx[14];
-        if (wx<r->bb[0])r->bb[0]=wx; if (wx>r->bb[1])r->bb[1]=wx;
-        if (wy<r->bb[2])r->bb[2]=wy; if (wy>r->bb[3])r->bb[3]=wy;
-        if (wz<r->bb[4])r->bb[4]=wz; if (wz>r->bb[5])r->bb[5]=wz;
+        if (wx<r->bb[0])r->bb[0]=wx;
+        if (wx>r->bb[1])r->bb[1]=wx;
+        if (wy<r->bb[2])r->bb[2]=wy;
+        if (wy>r->bb[3])r->bb[3]=wy;
+        if (wz<r->bb[4])r->bb[4]=wz;
+        if (wz>r->bb[5])r->bb[5]=wz;
     }
 }
 
@@ -1235,7 +1239,8 @@ static void n2_aabb_local(const unsigned char *d, N2Leaf v, float *mn, float *mx
     for (int i = 0; i < n; i++)
         for (int c = 0; c < 3; c++) {
             float f; memcpy(&f, rec + i*24 + c*4, 4);
-            if (f < mn[c]) mn[c] = f; if (f > mx[c]) mx[c] = f;
+            if (f < mn[c]) mn[c] = f;
+            if (f > mx[c]) mx[c] = f;
         }
     *nvert = n;
 }
@@ -1262,27 +1267,31 @@ static void n2_aabb_xform(const float *lmn, const float *lmx, const float *m,
 }
 
 static void n2_audit_meshes(const unsigned char *d, long beg, long end, N2Audit *a) {
+    if (beg < 0 || end < beg) return;
     long o = beg;
-    while (o + 8 <= end) {
+    while (end - o >= 8) {
         uint32_t magic = n2_u32(d + o), size = n2_u32(d + o + 4);
         long ds = o + 8;
+        if ((uint64_t)size > (uint64_t)(end - ds)) return;
+        long object_end = ds + (long)size;
         if (magic == 0x80134010u) {
-            char anm[40]; n2_mesh_name(d, ds, ds + size, anm, sizeof anm);
+            char anm[40]; n2_mesh_name(d, ds, object_end, anm, sizeof anm);
             int sc = n2_scen_class(anm);
-            float m[16]; int has = n2_obj_matrix(d, ds, ds + size, m);
+            float m[16]; int has = n2_obj_matrix(d, ds, object_end, m);
             N2Leaf h[2]; int n11 = 0;
-            n2_find_leaves(d, ds, ds + size, 0x00134011u, h, &n11, 2);
+            n2_find_leaves(d, ds, object_end, 0x00134011u, h, &n11, 2);
             /* an object is "nested" if a child 0x80134010 lives inside it */
             int nest = 0;
-            for (long q = ds; q + 8 <= ds + size; ) {
+            for (long q = ds; object_end - q >= 8; ) {
                 uint32_t mg = n2_u32(d+q), sz = n2_u32(d+q+4);
                 if (mg == 0x80134010u) { nest = 1; break; }
                 if (mg != 0 && (mg >> 28) == 8) { q += 8; continue; }   /* descend */
-                q += 8 + sz;
+                if ((uint64_t)sz > (uint64_t)(object_end - q - 8)) break;
+                q += 8 + (long)sz;
             }
             N2Leaf vtx[64], idx[64]; int nv = 0, ni = 0;
-            n2_find_leaves(d, ds, ds + size, 0x00134B01u, vtx, &nv, 64);
-            n2_find_leaves(d, ds, ds + size, 0x00134B03u, idx, &ni, 64);
+            n2_find_leaves(d, ds, object_end, 0x00134B01u, vtx, &nv, 64);
+            n2_find_leaves(d, ds, object_end, 0x00134B03u, idx, &ni, 64);
 
             /* is the 3x3 anything other than identity? If placement were only
                ever a translation, the rotation half would be read from the
@@ -1290,7 +1299,9 @@ static void n2_audit_meshes(const unsigned char *d, long beg, long end, N2Audit 
             { float dev = 0;
               for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) {
                   float e = m[r*4+c] - (r == c ? 1.0f : 0.0f);
-                  if (e < 0) e = -e; if (e > dev) dev = e; }
+                  if (e < 0) e = -e;
+                  if (e > dev) dev = e;
+                  }
               float det = m[0]*(m[5]*m[10]-m[6]*m[9]) - m[1]*(m[4]*m[10]-m[6]*m[8])
                         + m[2]*(m[4]*m[9]-m[5]*m[8]);
               if (det > a->maxdet) a->maxdet = det;
@@ -1326,9 +1337,9 @@ static void n2_audit_meshes(const unsigned char *d, long beg, long end, N2Audit 
                        tmn[0], tmx[0], tmn[1], tmx[1], tmn[2], tmx[2]);
             }
         } else if (magic != 0 && (magic >> 28) == 8) {
-            n2_audit_meshes(d, ds, ds + size, a);
+            n2_audit_meshes(d, ds, object_end, a);
         }
-        o = ds + size;
+        o = object_end;
     }
 }
 
@@ -2861,7 +2872,10 @@ static float n2_car_brake_radius(const unsigned char *d, long beg, long end) {
                         float x0=1e30f,x1=-1e30f,z0=1e30f,z1=-1e30f;
                         for (int i = 0; i < n; i++) { float x,z;
                             memcpy(&x, rec+i*36, 4); memcpy(&z, rec+i*36+8, 4);
-                            if(x<x0)x0=x; if(x>x1)x1=x; if(z<z0)z0=z; if(z>z1)z1=z; }
+                            if(x<x0)x0=x;
+                            if(x>x1)x1=x;
+                            if(z<z0)z0=z;
+                            if(z>z1)z1=z; }
                         return 0.25f*((x1-x0)+(z1-z0));
                     }
                 }
@@ -3330,7 +3344,8 @@ static int n2_mipbytes2(int w, int h, int bpb) {
         int bw = w < 4 ? 1 : w/4, bh = h < 4 ? 1 : h/4;
         t += bw*bh*bpb;
         if (w == 1 && h == 1) break;
-        if (w > 1) w /= 2; if (h > 1) h /= 2;
+        if (w > 1) w /= 2;
+        if (h > 1) h /= 2;
     }
     return t;
 }
@@ -3673,6 +3688,8 @@ static int n2_tpk_decode(const unsigned char *d, long len, N2Tpk t, uint32_t has
     memset(tex, 0, sizeof *tex);
     for (int b = 0; b < t.nblk; b++) {
         long hbeg = t.blk[b].hbeg, hend = hbeg + t.blk[b].hsize, dbase = t.blk[b].dbase;
+        if (dbase < 0 || dbase > len) continue;
+        uint64_t available = (uint64_t)(len - dbase);
         for (long i = hbeg; i + 0x40 < hend; i++) {
             if (!(d[i] >= 'A' && d[i] <= 'Z')) continue;
             if (n2_u32(d + i + 0x18) != hash) continue;
@@ -3710,7 +3727,8 @@ static int n2_tpk_decode(const unsigned char *d, long len, N2Tpk t, uint32_t has
                  * bounds-check the actual palette/index bytes -- a record
                  * whose declared offsets don't fit the file is corrupt, not
                  * decodable, regardless of what its tag claims. */
-                if (dbase+paloff+1024 > len || dbase+off+(long)w*hh > len) {
+                if ((uint64_t)paloff + 1024 > available ||
+                    (uint64_t)off + (uint64_t)w*hh > available) {
                     free(tex->rgb); free(alf); continue;
                 }
                 const unsigned char *pal = d + dbase + paloff, *ix = d + dbase + off;
@@ -3731,7 +3749,7 @@ static int n2_tpk_decode(const unsigned char *d, long len, N2Tpk t, uint32_t has
                 long dxt3 = is_dxt3;   /* format choice: from the proven +0x3e tag, not size */
                 long bx = ((long)w + 3) / 4, by = ((long)hh + 3) / 4;
                 long need = bx * by * (dxt3 ? 16 : 8);
-                if (dbase + off + need > len) { free(tex->rgb); free(alf); continue; }
+                if ((uint64_t)off + (uint64_t)need > available) { free(tex->rgb); free(alf); continue; }
                 if (dxt3) { n2_dxt3(d + dbase + off, w, hh, tex->rgb, alf); tex->afmt = 3; }
                 else      { n2_dxt1(d + dbase + off, w, hh, tex->rgb, alf); tex->afmt = 1; }
             }

@@ -864,7 +864,7 @@ static void test_scenery_event_assembly(void) {
             float p[3]={(float)(row*10+1),0.5f,0.5f},v[2]={0,-1};
             int hits=collide_walls(p,v,(const float(*)[4])ob,(const float(*)[2])oz,
                                    nwall,1.0f,0.3f,1.8f,&scene,src,NULL,0);
-            assert(hits==((cases[i].rows>>row)&1u));
+            assert(hits==(int)((cases[i].rows>>row)&1u));
             assert(hits ? v[1]==0 : v[1]==-1);
         }
         free_scene(&scene);free_scene(&vista);
@@ -1440,7 +1440,21 @@ static void test_common_key_submesh_resolution(void) {
     rmdir(global); rmdir(tracks); rmdir(base);
 }
 
+static void test_chunk_end_signed_range(void) {
+    long end = -1;
+    assert(chunk_end(0, 0, 0, &end) && end == 0);
+    assert(chunk_end(LONG_MAX - 4, 4, LONG_MAX, &end) && end == LONG_MAX);
+    assert(!chunk_end(LONG_MAX - 4, 5, LONG_MAX, &end));
+    assert(!chunk_end(-1, 0, LONG_MAX, &end));
+    assert(!chunk_end(1, 0, 0, &end));
+    assert(!chunk_end(0, UINT32_MAX, 16, &end));
+    /* A full u32 payload fits in long only on hosts with sufficient range. */
+    assert(chunk_end(0, UINT32_MAX, LONG_MAX, &end) ==
+           ((uint64_t)LONG_MAX >= UINT32_MAX));
+}
+
 int main(void) {
+    test_chunk_end_signed_range();
     test_scenery_event_assembly();
     test_selection_never_hides_ground();
     test_ground_prototype_follows_its_instance_transform();
