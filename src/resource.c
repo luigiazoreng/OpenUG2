@@ -252,7 +252,7 @@ unsigned char *res_map_file(const char *path, long *len) {
     default_budget_started = 1;
     budget_unlock(&default_budget);
     if (!res_file_open(path, &default_budget, &file, error, sizeof error)) {
-        ResBudgetStats stats;
+        ResBudgetStats stats = {0};
         res_budget_snapshot(&default_budget, &stats);
         fprintf(stderr, "resource map %s failed: %s (file limit %u, total %u, used %u)\n",
                 path, error, stats.per_file, stats.limit, stats.used);
