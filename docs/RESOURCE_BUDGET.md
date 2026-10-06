@@ -11,12 +11,15 @@ returns a path-specific error string when a buffer is supplied; an already
 owned output is left untouched and rejected.
 
 `limit` and `per_file` are byte counts stored as `uint32_t`. `per_file` limits
-the payload length. `used` and `peak` include the private aligned owner header
-as well as payload, so metadata cannot escape the simultaneous-memory limit.
+the payload length. `used` and `peak` include the private owner header, aligned
+to the greatest C fundamental alignment it uses (including `long double` and
+pointers), as well as payload, so metadata cannot escape the simultaneous-
+memory limit.
 `live` counts active owners. Releasing the last owner returns `used` to zero
 and keeps `peak`; a failed short-read can raise `peak` because its buffer was
-reserved and allocated before EOF was discovered. `res_budget_snapshot` reads all counters under the same short
-lock used for reservation and release; the lock is not held during file I/O.
+reserved and allocated before EOF was discovered. `res_budget_snapshot` reads
+all counters under the same short lock used for reservation and release; the
+lock is not held during file I/O.
 Budgets use GCC/Clang 32-bit atomic spin-lock builtins and introduce no SDL or
 thread-library link dependency.
 The budget is a public C struct for stack/static allocation; treat its fields
@@ -39,7 +42,10 @@ first legacy map attempt. Its private prefix records the owner and budget so
 still receive `NULL` and length zero on a failed open; this is deliberately
 not a silent `malloc` replacement for large lazy-mapped world bundles.
 
-The small `resource_budget_test` exercises simultaneous owners, exact and
-over-limit budgets, release/peak behavior, deterministic short reads, sparse
-oversized files, regular-file symlinks, rejection of directories, and both
-legacy backends under ASan/UBSan.
+The focused tests exercise simultaneous owners, exact and over-limit budgets,
+reinitialization refusal while owners are live, release/peak behavior,
+deterministic short reads, sparse oversized files, owner alignment, regular-
+file symlinks, rejection of directories, and both legacy backends under
+ASan/UBSan. A separate pthread test races two opens against one budget slot
+without compiling the short-read test hook; the buffered legacy API prints the
+path, failure, and active limits when an open fails.

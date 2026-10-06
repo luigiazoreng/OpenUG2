@@ -154,12 +154,14 @@ resource-test: tools/resource_test.c src/resource.c src/resource.h src/nfsu2.h
 	$(CC) $(CFLAGS) -Isrc tools/resource_test.c src/resource.c -o build/resource_test -lm
 	./build/resource_test
 
-resource-budget-test: tools/resource_budget_test.c src/resource.c src/resource.h src/nfsu2.h
+resource-budget-test: tools/resource_budget_test.c tools/resource_concurrency_test.c src/resource.c src/resource.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -fsanitize=address,undefined -fno-omit-frame-pointer -DRESOURCE_TESTING -Isrc tools/resource_budget_test.c src/resource.c -o build/resource_budget_test -lm
+	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -fsanitize=address,undefined -fno-omit-frame-pointer -DRESOURCE_TESTING -Isrc tools/resource_budget_test.c src/resource.c -o build/resource_budget_test -lm
 	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./build/resource_budget_test
-	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -fsanitize=address,undefined -fno-omit-frame-pointer -DRESOURCE_TESTING -DOPENUG2_RESOURCE_BUFFERED -Isrc tools/resource_budget_test.c src/resource.c -o build/resource_budget_test_buffered -lm
+	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -fsanitize=address,undefined -fno-omit-frame-pointer -DRESOURCE_TESTING -DOPENUG2_RESOURCE_BUFFERED -Isrc tools/resource_budget_test.c src/resource.c -o build/resource_budget_test_buffered -lm
 	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./build/resource_budget_test_buffered
+	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -fsanitize=address,undefined -fno-omit-frame-pointer -pthread -Isrc tools/resource_concurrency_test.c src/resource.c -o build/resource_concurrency_test -lm
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./build/resource_concurrency_test
 
 world-group-audit: tools/world_group_audit.c src/world_group_reader.h src/world_scenery.h src/world_instance.c src/world_instance.h src/nfsu2.h
 	@mkdir -p build

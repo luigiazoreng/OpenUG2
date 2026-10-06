@@ -10,6 +10,19 @@
 
 #include "resource.h"
 
+struct AlignLongDouble { char byte; long double value; };
+struct AlignPointer { char byte; void *value; };
+struct AlignUint64 { char byte; uint64_t value; };
+
+static size_t fundamental_alignment(void) {
+    size_t alignment = offsetof(struct AlignLongDouble, value);
+    if (offsetof(struct AlignPointer, value) > alignment)
+        alignment = offsetof(struct AlignPointer, value);
+    if (offsetof(struct AlignUint64, value) > alignment)
+        alignment = offsetof(struct AlignUint64, value);
+    return alignment;
+}
+
 #ifdef RESOURCE_TESTING
 extern size_t res_test_read_limit;
 #endif
@@ -40,6 +53,7 @@ static void test_budgeted_owner(const char *a, const char *b, const char *large)
     ResFile fa = {0}, fb = {0}; char error[256];
     assert(res_file_open(a, &budget, &fa, error, sizeof error));
     assert(budget.live == 1 && fa.len == 8 && !memcmp(fa.data, "12345678", 8));
+    assert((uintptr_t)fa.data % fundamental_alignment() == 0);
     ResBudgetStats snapshot;
     res_budget_snapshot(&budget, &snapshot);
     assert(snapshot.limit == cost_a + cost_b && snapshot.per_file == 64 &&
@@ -96,17 +110,22 @@ static void test_file_kinds(const char *a, const char *dir, const char *linkpath
     puts("resource_budget_test: PASS (symlink target regular-file check)");
 }
 
-static void test_legacy(const char *path, const char *missing) {
+static void test_legacy(const char *path, const char *missing, const char *large) {
 #ifdef OPENUG2_RESOURCE_BUFFERED
     assert(res_map_budget_configure(4096, 128));
     long len = 99;
     unsigned char *data = res_map_file(path, &len);
     assert(data && len == 8 && !memcmp(data, "12345678", 8));
+#ifdef OPENUG2_RESOURCE_BUFFERED
+    assert((uintptr_t)data % fundamental_alignment() == 0);
+#endif
     assert(!res_map_budget_configure(8192, 128));
     res_unmap_file(data, len);
+    assert(!res_map_file(large, &len) && len == 0);
     assert(!res_map_file(missing, &len) && len == 0);
     assert(!res_map_budget_configure(0, 1));
 #else
+    (void)large;
     long len = 99;
     unsigned char *data = res_map_file(path, &len);
     assert(data && len == 8 && !memcmp(data, "12345678", 8));
@@ -134,7 +153,7 @@ int main(void) {
 
     test_budgeted_owner(a, b, large);
     test_file_kinds(a, dir, linkpath);
-    test_legacy(a, missing);
+    test_legacy(a, missing, large);
 
     assert(unlink(linkpath) == 0);
     assert(unlink(a) == 0 && unlink(b) == 0 && unlink(large) == 0);

@@ -21,13 +21,19 @@
 #define RES_BUDGET_MAGIC UINT32_C(0x52534247)
 #define RES_MIB UINT32_C(1048576)
 
-/* The header's size is a multiple of its alignment, so payloads retain malloc
- * alignment. It is deliberately part of the accounted heap reservation. */
-typedef struct {
-    uint32_t magic, reserved;
-    ResBudget *budget;
-    uint32_t allocation;
-    uint32_t payload;
+/* The union gives the prefix the alignment of C's fundamental object types,
+ * including long double and pointers. Its rounded size preserves that
+ * alignment for data; the full prefix is included in the budget reservation. */
+typedef union {
+    struct {
+        uint32_t magic, reserved;
+        ResBudget *budget;
+        uint32_t allocation;
+        uint32_t payload;
+    } m;
+    long double align_long_double;
+    void *align_pointer;
+    uint64_t align_u64;
 } ResOwner;
 
 static ResBudget default_budget = {
@@ -183,11 +189,11 @@ int res_file_open(const char *path, ResBudget *budget, ResFile *out,
         budget_release(budget, total); close(fd);
         set_error(error, errorcap, path, "allocation failed"); return 0;
     }
-    owner->magic = RES_OWNER_MAGIC;
-    owner->reserved = 0;
-    owner->budget = budget;
-    owner->allocation = total;
-    owner->payload = payload;
+    owner->m.magic = RES_OWNER_MAGIC;
+    owner->m.reserved = 0;
+    owner->m.budget = budget;
+    owner->m.allocation = total;
+    owner->m.payload = payload;
     unsigned char *data = (unsigned char *)(owner + 1);
     size_t done = 0;
 #ifdef RESOURCE_TESTING
@@ -224,10 +230,10 @@ void res_file_close(ResFile *file) {
     if (!file) return;
     if (file->data) {
         ResOwner *owner = ((ResOwner *)file->data) - 1;
-        if (owner->magic == RES_OWNER_MAGIC && owner->budget) {
-            ResBudget *budget = owner->budget;
-            uint32_t allocation = owner->allocation;
-            owner->magic = 0;
+        if (owner->m.magic == RES_OWNER_MAGIC && owner->m.budget) {
+            ResBudget *budget = owner->m.budget;
+            uint32_t allocation = owner->m.allocation;
+            owner->m.magic = 0;
             free(owner);
             budget_release(budget, allocation);
         }
@@ -245,7 +251,13 @@ unsigned char *res_map_file(const char *path, long *len) {
     budget_lock(&default_budget);
     default_budget_started = 1;
     budget_unlock(&default_budget);
-    if (!res_file_open(path, &default_budget, &file, error, sizeof error)) return NULL;
+    if (!res_file_open(path, &default_budget, &file, error, sizeof error)) {
+        ResBudgetStats stats;
+        res_budget_snapshot(&default_budget, &stats);
+        fprintf(stderr, "resource map %s failed: %s (file limit %u, total %u, used %u)\n",
+                path, error, stats.per_file, stats.limit, stats.used);
+        return NULL;
+    }
     unsigned char *data = file.data;
     *len = file.len;
     file.data = NULL; file.len = 0; /* ownership is now legacy pointer metadata */
