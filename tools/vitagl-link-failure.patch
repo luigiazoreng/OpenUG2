@@ -1,0 +1,76 @@
+diff --git a/source/custom_shaders.c b/source/custom_shaders.c
+index e5b3d82..d52a8bf 100644
+--- a/source/custom_shaders.c
++++ b/source/custom_shaders.c
+@@ -393,6 +393,13 @@ static inline __attribute__((always_inline)) uniform *get_uniform_from_ptr(GLint
+ 
+ void release_shader(shader *s) {
+ 	// Deallocating shader and unregistering it from sceGxmShaderPatcher
++	/* The compiler log may exist even when compilation failed and prog is NULL. */
++#ifdef HAVE_SHARK_LOG
++	if (s->log) {
++		vgl_free(s->log);
++		s->log = NULL;
++	}
++#endif
+ 	if (s->prog) {
+ 		vglVertexProgramCacheInvalidate(s->id);
+ 		vgl_free((void *)s->prog);
+@@ -406,11 +413,6 @@ void release_shader(shader *s) {
+ 			vgl_free(s->unif_blk);
+ 			s->unif_blk = b;
+ 		}
+-#ifdef HAVE_SHARK_LOG
+-		if (s->log) {
+-			vgl_free(s->log);
+-		}
+-#endif
+ 	}
+ 	if (s->source) {
+ 		vgl_free(s->source);
+@@ -2105,19 +2107,27 @@ void glLinkProgram(GLuint progr) {
+ 
+ 	// Grabbing passed program
+ 	program *p = &progs[progr - 1];
+-#ifndef SKIP_ERROR_HANDLING
++	/* Program creation may leave either attachment unset. Keep this guard
++	 * unconditional: NO_DEBUG builds define SKIP_ERROR_HANDLING, but deferred
++	 * compilation still needs these checks before any shader dereference. */
++	if (!p->fshader || !p->vshader) {
++		p->status = PROG_UNLINKED;
++		vgl_log("%s:%d: %s: attached vertex or fragment shader is missing.\n", __FILE__, __LINE__, __func__);
++		return;
++	}
+ 	if (glsl_sema_mode == VGL_MODE_POSTPONED) {
+ 		if (!(p->fshader->prog || (p->fshader->is_glsl && p->fshader->source)) || !(p->vshader->prog || (p->vshader->is_glsl && p->vshader->source))) {
++			p->status = PROG_UNLINKED;
+ 			vgl_log("%s:%d: %s: %s shader is missing.\n", __FILE__, __LINE__, __func__, (p->fshader->prog || (p->fshader->is_glsl && p->fshader->source)) ? "vertex" : "fragment");
+ 			return;
+ 		}
+ 	} else {
+ 		if (!p->fshader->prog || !p->vshader->prog) {
++			p->status = PROG_UNLINKED;
+ 			vgl_log("%s:%d: %s: %s shader is missing.\n", __FILE__, __LINE__, __func__, p->fshader->prog ? "vertex" : "fragment");
+ 			return;
+ 		}
+ 	}
+-#endif
+ 
+ 	// With VGL_MODE_POSTPONED we perform shaders translation+compilation and attributes binding prior actual program linking
+ 	if (glsl_sema_mode == VGL_MODE_POSTPONED && (p->vshader->is_glsl || p->fshader->is_glsl)) {
+@@ -2173,6 +2183,15 @@ void glLinkProgram(GLuint progr) {
+ 				vgl_compile_shader(p->fshader, GL_TRUE);
+ 			}
+ 		}
++		/* Compilation is deferred until link. A failed compile leaves prog
++		 * NULL, so stop before attrib processing or GXM parameter access. */
++		if (!p->vshader->prog || !p->fshader->prog) {
++			p->status = PROG_UNLINKED;
++			vgl_log("%s:%d: %s: deferred shader compilation failed (vertex=%p fragment=%p).\n",
++				__FILE__, __LINE__, __func__, (void *)p->vshader->prog, (void *)p->fshader->prog);
++			glsl_sema_mode = VGL_MODE_POSTPONED;
++			return;
++		}
+ 
+ 		// Setting progressive default attribute bindings
+ 		set_default_attrib_binding();

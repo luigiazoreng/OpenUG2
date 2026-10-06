@@ -1005,12 +1005,24 @@ void write_png(const char *path, int w, int h, const unsigned char *rgb) {
     free(raw); free(comp);
 }
 
+static void (*render_logger)(const char *, ...);
+void render_set_diagnostic_logger(void (*logger)(const char *, ...)) {
+    render_logger = logger;
+}
+#define RENDER_LOG(...) do { if (render_logger) render_logger(__VA_ARGS__); } while (0)
+
 static GLuint compile(GLenum type, const char *src) {
+    RENDER_LOG("RENDER SHADER type=%u phase=create bytes=%lu\n", (unsigned)type, (unsigned long)strlen(src));
     GLuint s = glCreateShader(type);
     if (!s) { fprintf(stderr, "renderer: shader allocation failed (type %u)\n", (unsigned)type); return 0; }
-    glShaderSource(s, 1, &src, NULL); glCompileShader(s);
+    RENDER_LOG("RENDER SHADER type=%u handle=%u phase=source\n", (unsigned)type, (unsigned)s);
+    glShaderSource(s, 1, &src, NULL);
+    RENDER_LOG("RENDER SHADER type=%u handle=%u phase=compile\n", (unsigned)type, (unsigned)s);
+    glCompileShader(s);
     GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    RENDER_LOG("RENDER SHADER type=%u handle=%u phase=status compiled=%d\n", (unsigned)type, (unsigned)s, ok);
     if (!ok) { char log[2048] = {0}; glGetShaderInfoLog(s, sizeof log, NULL, log);
+        RENDER_LOG("RENDER SHADER type=%u FAIL log=%s\n", (unsigned)type, log);
         fprintf(stderr, "renderer: shader compile failed (type %u): %s\n", (unsigned)type, log);
         glDeleteShader(s); return 0; }
     return s;
@@ -1228,14 +1240,28 @@ RProg render_program(void) {
     glBindAttribLocation(r.prog, 1, "aUV");
     glBindAttribLocation(r.prog, 2, "aNor");
     glBindAttribLocation(r.prog, 3, "aColor");
+    RENDER_LOG("RENDER PROGRAM handle=%u phase=link\n", (unsigned)r.prog);
     glLinkProgram(r.prog);
-    glDeleteShader(vertex); glDeleteShader(fragment);
     GLint linked = 0; glGetProgramiv(r.prog, GL_LINK_STATUS, &linked);
+    RENDER_LOG("RENDER PROGRAM handle=%u phase=link_status linked=%d\n", (unsigned)r.prog, linked);
     if (!linked) {
         char info[2048] = {0}; glGetProgramInfoLog(r.prog, sizeof info, NULL, info);
+        RENDER_LOG("RENDER PROGRAM FAIL log=%s\n", info);
         fprintf(stderr, "renderer: program link failed: %s\n", info);
+        /* Some backends compile during link and keep the useful diagnostic on
+           the shader objects. Inspect them before releasing the handles. */
+        const GLuint shaders[2] = {vertex, fragment};
+        for (int i = 0; i < 2; i++) {
+            memset(info, 0, sizeof info);
+            glGetShaderInfoLog(shaders[i], sizeof info, NULL, info);
+            RENDER_LOG("RENDER LINK SHADER handle=%u log=%s\n", (unsigned)shaders[i], info);
+            if (*info) fprintf(stderr, "renderer: linked shader diagnostic: %s\n", info);
+        }
+        glDeleteShader(vertex); glDeleteShader(fragment);
         render_delete_program(r.prog); r.prog = 0; return r;
     }
+    glDeleteShader(vertex); glDeleteShader(fragment);
+    RENDER_LOG("RENDER PROGRAM handle=%u phase=uniforms\n", (unsigned)r.prog);
     render_use_program(r.prog);
     r.uMVP     = render_uniform_location(r.prog, "uMVP");
     r.uModel   = render_uniform_location(r.prog, "uModel");
