@@ -28,9 +28,11 @@ is an isolated platform executable; it does not claim that milestone.
 
 The [complete API inventory](VITA_API_INVENTORY.md) records API, file, owning
 function, source lines, Vita support, substitution and blocking status.
-Regenerate it with `python3 tools/vita_api_audit.py`. It is frozen against the
-recorded engine revision, so adding this bootstrap cannot change the audited
-engine list.
+Regenerate the reviewed snapshot with
+`python3 tools/vita_api_audit.py --revision 3f7536eba3ecfe6640e0115e57b0a48c49db53aa`.
+The script's historical default remains available; this checked-in inventory
+is pinned to the issue #14 review base so adding this bootstrap cannot change
+the audited engine list.
 It removes comments/literals and separately captures dynamically loaded GL
 names. It includes conditional diagnostics inside production engine files;
 it is a source superset, not a preprocessed list of calls executed each frame.
