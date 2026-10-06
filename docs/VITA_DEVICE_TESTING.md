@@ -173,8 +173,31 @@ python3 -m venv /tmp/openug2-vita-device-validation
 ```
 
 O teste USB usa um volume simulado; o teste FTP opcional usa localhost.
-Nenhum deles valida USB/FTP do console físico. Os fixtures de VPK, geometria
+Esses testes automatizados não validam USB/FTP do console físico. Os fixtures de VPK, geometria
 e logs são sintéticos e não executam código no Vita. A evidência local desta
 entrega fica em `../nfsu2-data/reports/vita-device-tooling-2026-10-05/`, fora dos
 relatórios selados da homologação host anterior. Não houve publicação de PR
 ou comentário em issue.
+
+### Primeira conexão física — 2026-10-05
+
+Após ativar VitaShell USB, o console apareceu como `054c:05d3`, PS Vita Type A,
+interface mass storage com driver `usb-storage`. O Linux montou `/dev/sda`,
+exFAT, em `/media/luigi/2CDA-8AFC`; a configuração do VitaShell identificou
+`USBDEVICE=2` (SD2Vita). Havia aproximadamente 18 GiB livres.
+
+A transferência **real pelo USB** do VPK homologado e da geometria 240SX
+foi concluída, relida do dispositivo e verificada por SHA-256. Não existiam
+dados OpenUG2 nesses destinos. O volume foi desmontado com `udisksctl unmount`
+antes da instalação manual. Pico amostrado no host: **20,4 MiB**, com limite
+512 MiB e mínimo de aproximadamente 7,4 GiB disponíveis no computador.
+
+Evidência desta transferência:
+`../nfsu2-data/reports/vita-device/vita-20261006T005820Z-c9e65762/` contém
+`deployment.json`, `linux-usb.json`, `transfer-validation.json` e as duas
+releituras. VPK no Vita:
+`ux0:data/openug2/deploy/20261006T005820Z-c9e65762/openug2-vita.vpk`.
+
+**Instalação, imagem, controles e saída no console ainda aguardam evidência.**
+USB validado não significa V0/V1/V2 homologados. FTP físico também continua
+pendente; o usuário pode optar por esse transporte nas próximas sessões.
