@@ -69,3 +69,49 @@ execução. Esta documentação registra o diagnóstico e a alteração preparad
 não afirma que o shader completo já funciona no Vita. Depois de construir e
 verificar o pacote novo, instalar uma vez para capturar o diagnóstico de
 compilação e retomar o aceite físico do item 5.
+
+## Resultado da preparação e próximo teste físico
+
+Builds dentro de cap384 MiB, reserva3072 MiB e swap0:
+
+| Execução | Pico amostrado | Resultado |
+| --- | --- | --- |
+| vitaGL rebuild completo | 365,6 MiB | PASS; warnings próprios da receita SDK preservados |
+| vitaGL cleanup de log / archive final | 75,8 MiB | PASS |
+| Fixture GL/GLES + probes GL/GLES, serializados | 270,4 MiB | Rollback e diagnóstico PASS; 15/15 probes em cada API |
+| VPK novo, diretório fresco | 205,3 MiB | 9 unidades C com Werror confirmado, zero avisos |
+| Deploy USB com readback | 26,7 MiB | Cinco arquivos conferidos; volume desmontado |
+
+Mesa forneceu GL4.5 Compatibility e GLES3.2 apesar dos pedidos GL2.1/ES2.
+Os fixtures verificam o caminho API legacy/GLES, sem alegar implementação
+estrita desses mínimos nem equivalência com o console. O patch aplica no
+source pinned; objdump confirma branches que impedem consultar GXM com prog
+nulo e a liberação de log mesmo em compile fail. Não há execução ARM desse
+caminho no host.
+
+Archive corrigido SHA-256:
+`beb7b264ccd306621b6cf68c5b2ef729e8105aa30164374bd8787239f14e9057`.
+Patch SHA-256:
+`09088469872c779635543566c6746dbba812bab10b9cb82f900fde3bd9ede52d`.
+O bundle de dependência recuperável está na pasta de evidências dependency.
+
+VPK compilado em `291fcc682ddfe978fad40d16ecc8cdfd2b659c5a`:
+1.252.212 B, SHA-256
+`bcf534b561374fd9fb54494a64021957c8526e41bca9823cda0205ac384a373c`.
+Eboot SHA-256:
+`a8076ac393692cd442adef2b0590dbd3d6c79586b76dc5675bbfe2e86bc28b13`.
+Sidecar e flags/fontes de build estão em `shader-fix/sdk/`.
+
+Pacote novo preservado:
+`/home/luigi/Documents/luigi/nfsu2-data/vita/stock-240sx-shader-fix-2026-10-06/ready/`.
+Run ID `5ecc9b7dca8e4984b90e3420`, diferente da sessão do crash.
+Transferido para `ux0:data/openug2/car-viewer.vpk` e readback confirmado.
+O operador precisa reinstalar no VitaShell e lançar o aplicativo. A
+instalação anterior ainda não foi alterada pelo host. Se o shader continuar
+sem compilar, o teste deve encerrar com erro explícito e capturar seu log.
+Reativar USB para coleta em nova pasta `shader-fix/device-01/`, usando este
+bundle novo. Manter `device-01/` anterior como prova do crash original.
+
+Status: `HOST_VALIDATED_DEPLOYED_DEVICE_RETEST_PENDING`. A correção impede o
+acesso nulo identificado; o sucesso do shader e a homologação física do item5
+continuam pendentes. Não há publicação de issue/PR nesta rodada.
