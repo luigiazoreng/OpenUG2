@@ -393,3 +393,26 @@ aparecem separados, sem combinação simultânea registrada. Foi solicitado um
 teste específico mantendo SELECT pressionado ao apertar START e recolhendo
 o log após a saída. Não há homologação completa desta build enquanto esse
 caso e a cobertura restante dos controles estiverem pendentes.
+
+### Saída limpa confirmada — 2026-10-05
+
+O usuário confirmou SELECT+START. A primeira releitura pelo Linux retornou
+o mesmo hash do arquivo anterior. Após desmontar e reiniciar o USB no
+VitaShell, a coleta `vita-20261006T014608Z-e911f9f1/collection-7db9fb0b/`
+obteve o arquivo atualizado de 3.862 bytes. Ele registra START e SELECT
+simultâneos no hardware (`buttons=0x00000009`), SDL (`buttons=0x00000050`,
+`quit=1`) e **`shutdown complete: frames=122 status=0`**. As oito checagens
+automáticas do verificador passaram. Isso valida a saída limpa desta build.
+
+O caso final não iniciou uma releitura assíncrona; saída com worker ainda
+ocupado é coberta pelo teste de lifecycle host, sem prova física adicional.
+As quatro tarefas físicas anteriores concluíram normalmente. O transporte,
+parser stock, triângulo inicial, START e Cross durante leitura, e saída
+normal têm evidência física. Isso encerra o diagnóstico desta sequência.
+
+`result.json` permanece `REVIEW_REQUIRED`: a coleta foi feita sem inventar
+confirmações manuais para todos os controles e sem modelo/firmware informados.
+Essa classificação não indica erro nas oito checagens. Não houve teste físico
+de todos os ombros/botões, saída durante worker ocupado, FTP, renderer completo,
+DXT/FBO ou pico de memória do processo. Não há homologação do port completo.
+O [handoff desta branch](VITA_DEVICE_HANDOFF.md) reúne limites e evidências.
