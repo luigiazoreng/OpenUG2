@@ -33,7 +33,7 @@ else
 endif
 
 # engine modules: orchestrator + Renderer/Physics/AI/Audio/Resources/World
-SRC  := src/main.c src/render.c src/physics.c src/ai.c src/audio.c src/resource.c src/world.c src/world_instance.c src/world_resident.c src/world_mesh.c src/hud.c
+SRC  := src/main.c src/render.c src/render_uniform.c src/physics.c src/ai.c src/audio.c src/resource.c src/world.c src/world_instance.c src/world_resident.c src/world_mesh.c src/hud.c
 HDRS := src/traffic_heatmap.h src/asset_chunks.h src/car_config.h src/car_mod.h src/nfsu2.h src/render.h src/physics.h src/ai.h src/audio.h src/resource.h src/debug.h src/world.h src/world_instance.h src/world_resident.h src/world_mesh.h src/world_capture_policy.h src/world_group_reader.h src/world_scenery.h src/ground_motion.h src/hud.h
 
 .DEFAULT_GOAL := nfsu2   # keep `make` building the binary, not the generated header
@@ -107,9 +107,9 @@ car-material-test: tools/car_material_test.c src/nfsu2.h src/car_config.h src/ca
 
 # HUD maths only: no GL calls are executed, but hud.c still references the GL
 # symbols, so the link needs the same libraries as the engine.
-hud-test: tools/hud_test.c src/hud.c src/hud.h src/render.c src/render.h src/nfsu2.h
+hud-test: tools/hud_test.c src/hud.c src/hud.h src/render.c src/render_uniform.c src/render.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/hud_test.c src/hud.c src/render.c \
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/hud_test.c src/hud.c src/render.c src/render_uniform.c \
 		-o build/hud_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/hud_test
 
@@ -118,9 +118,9 @@ world-render-test: tools/world_render_test.c src/nfsu2.h
 	$(CC) $(CFLAGS) -Isrc tools/world_render_test.c -o build/world_render_test -lm
 	./build/world_render_test
 
-world-resident-test: tools/world_resident_test.c src/world_resident.c src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c $(HDRS)
+world-resident-test: tools/world_resident_test.c src/world_resident.c src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c $(HDRS)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -DWORLD_RESIDENT_TESTING -Isrc tools/world_resident_test.c src/world_resident.c src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c -o build/world_resident_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -DWORLD_RESIDENT_TESTING -Isrc tools/world_resident_test.c src/world_resident.c src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c -o build/world_resident_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/world_resident_test
 
 district-collision-test: tools/district_collision_test.c src/physics.c src/physics.h src/nfsu2.h
@@ -128,9 +128,9 @@ district-collision-test: tools/district_collision_test.c src/physics.c src/physi
 	$(CC) $(CFLAGS) -Isrc tools/district_collision_test.c src/physics.c -o build/district_collision_test -lm
 	./build/district_collision_test
 
-ground-motion-test: tools/ground_motion_test.c src/ground_motion.h src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c $(HDRS)
+ground-motion-test: tools/ground_motion_test.c src/ground_motion.h src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c $(HDRS)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/ground_motion_test.c src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c -o build/ground_motion_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/ground_motion_test.c src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c -o build/ground_motion_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/ground_motion_test
 
 traffic-heatmap-test: tools/traffic_heatmap_test.c src/traffic_heatmap.h
@@ -138,9 +138,9 @@ traffic-heatmap-test: tools/traffic_heatmap_test.c src/traffic_heatmap.h
 	$(CC) $(CFLAGS) -Isrc tools/traffic_heatmap_test.c -o build/traffic_heatmap_test -lm
 	./build/traffic_heatmap_test
 
-ai-drive-test: tools/ai_drive_test.c src/ai.c src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c $(HDRS)
+ai-drive-test: tools/ai_drive_test.c src/ai.c src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c $(HDRS)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/ai_drive_test.c src/ai.c src/world.c src/resource.c src/world_instance.c src/render.c src/physics.c -o build/ai_drive_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/ai_drive_test.c src/ai.c src/world.c src/resource.c src/world_instance.c src/render.c src/render_uniform.c src/physics.c -o build/ai_drive_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/ai_drive_test
 
 world-group-test: tools/world_group_test.c src/world_group_reader.h
@@ -163,6 +163,20 @@ resource-budget-test: tools/resource_budget_test.c tools/resource_concurrency_te
 	$(CC) -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function -fsanitize=address,undefined -fno-omit-frame-pointer -pthread -Isrc tools/resource_concurrency_test.c src/resource.c -o build/resource_concurrency_test -lm
 	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./build/resource_concurrency_test
 
+.PHONY: render-uniform-cache-test render-uniform-live-test
+render-uniform-cache-test: tools/render_uniform_cache_test.c src/render_uniform.c src/render.h src/nfsu2.h
+	@mkdir -p build
+	$(CC) -O1 -g -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Wno-unused-function \
+		-fsanitize=address,undefined -fno-omit-frame-pointer $(SDL_CFLAGS) -Isrc \
+		tools/render_uniform_cache_test.c src/render_uniform.c -o build/render_uniform_cache_test -lm
+	./build/render_uniform_cache_test
+
+render-uniform-live-test: tools/render_uniform_live_test.c src/render_uniform.c src/render.h src/nfsu2.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/render_uniform_live_test.c src/render_uniform.c \
+		-o build/render_uniform_live_test $(SDL_LIBS) $(GL_LIBS) -lm
+	./build/render_uniform_live_test
+
 world-group-audit: tools/world_group_audit.c src/world_group_reader.h src/world_scenery.h src/world_instance.c src/world_instance.h src/nfsu2.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) tools/world_group_audit.c -o build/world_group_audit -lm
@@ -171,9 +185,9 @@ route-membership-audit: tools/m160_route_audit.c src/world_group_reader.h src/wo
 	@mkdir -p build
 	$(CC) $(CFLAGS) tools/m160_route_audit.c -o build/m160_route_audit -lm
 
-wheel-render-test: tools/wheel_render_test.c src/render.c src/render.h src/nfsu2.h
+wheel-render-test: tools/wheel_render_test.c src/render.c src/render_uniform.c src/render.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/wheel_render_test.c src/render.c -o build/wheel_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/wheel_render_test.c src/render.c src/render_uniform.c -o build/wheel_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/wheel_render_test
 
 wheel-reload-test: tools/wheel_reload_test.c $(SRC) $(HDRS) $(GEN)
@@ -188,14 +202,14 @@ modification-test: wheel-reload-test
 .PHONY: modification-test
 .PHONY: body-kit-test
 
-light-state-test: tools/light_state_test.c src/render.c src/render.h src/nfsu2.h
+light-state-test: tools/light_state_test.c src/render.c src/render_uniform.c src/render.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/light_state_test.c src/render.c -o build/light_state_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/light_state_test.c src/render.c src/render_uniform.c -o build/light_state_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/light_state_test
 
-world-texture-test: tools/world_texture_test.c src/world.c src/resource.c src/world_instance.c src/world_resident.c src/render.c src/physics.c $(HDRS) src/world.h
+world-texture-test: tools/world_texture_test.c src/world.c src/resource.c src/world_instance.c src/world_resident.c src/render.c src/render_uniform.c src/physics.c $(HDRS) src/world.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/world_texture_test.c src/world.c src/resource.c src/world_instance.c src/world_resident.c src/render.c src/physics.c -o build/world_texture_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/world_texture_test.c src/world.c src/resource.c src/world_instance.c src/world_resident.c src/render.c src/render_uniform.c src/physics.c -o build/world_texture_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/world_texture_test
 
 world-cli-test: nfsu2
@@ -321,15 +335,15 @@ clean:
 .PHONY: run normal menu gles clean debug world-instance-test world-cli-test car-material-test world-render-test world-resident-test district-collision-test wheel-render-test light-state-test world-texture-test world-group-test world-group-audit ai-drive-test ai-drive-cli-test resolution-cli-test render-resolution-test
 
 .PHONY: headlight-render-test
-headlight-render-test: tools/headlight_render_test.c src/render.c src/render.h src/nfsu2.h
+headlight-render-test: tools/headlight_render_test.c src/render.c src/render_uniform.c src/render.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/headlight_render_test.c src/render.c -o build/headlight_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/headlight_render_test.c src/render.c src/render_uniform.c -o build/headlight_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/headlight_render_test
 
 .PHONY: traffic-heatmap-test
 
-weather-render-test: tools/weather_render_test.c src/render.c src/render.h src/nfsu2.h
+weather-render-test: tools/weather_render_test.c src/render.c src/render_uniform.c src/render.h src/nfsu2.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/weather_render_test.c src/render.c -o build/weather_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -Isrc tools/weather_render_test.c src/render.c src/render_uniform.c -o build/weather_render_test $(SDL_LIBS) $(GL_LIBS) -lz -lm
 	./build/weather_render_test
 .PHONY: weather-render-test
