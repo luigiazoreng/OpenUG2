@@ -64,5 +64,25 @@ serialização. O archive privado de vitaGL é o já validado na correção de
 precedência; não foi recompilado nem alterado nesta entrega. Relatórios:
 `nfsu2-data/reports/vita-item5-2026-10-06/car-shader/`.
 
-Estado: perfil validado no host, reteste físico pendente. Carro dirigível,
-cenário e shader completo da engine continuam fora da homologação deste viewer.
+## Pacote transferido
+
+Build limpo em `5d9a314286b344c8f600f05ab78100962554102f`, dez unidades C,
+`-Wall -Wextra -Werror`, zero warnings. Pico: 200,7 MiB, dentro do limite
+de 384 MiB. As comparações do carro tiveram pico de 285,5 MiB; probes e
+fixture de tradução, 154,4 MiB. Todos passaram sob o guard.
+
+- Archive mantido: `d3411f4d29748509cadab6aff1110b5d46882effdb69e6eccee01c823c061599`
+- VPK: `4c33108a2b0a7bdd9562a7629eb3b0e2a77d7ee4003483f2f99fbb973f067073`
+- eboot: `cb478e532ac45a44da9c2c9b136dadbec846758c97bf140612ec36e0754d5c1c`
+- Sessão: `cee27925449a48f4b9879417`
+- Perfil no sidecar: `static_car`; engine completa: `DEFERRED`.
+
+Bundle privado: `nfsu2-data/vita/stock-240sx-car-shader-2026-10-06/ready/`.
+O novo VPK e nonce foram transferidos para `ux0:data/openug2/`; os três
+assets coincidentes foram preservados. Os cinco arquivos passaram readback
+após sync; o USB foi desmontado. Reinstalar `car-viewer.vpk`, abrir a
+aplicação e reativar USB no VitaShell para coleta dos resultados.
+
+Estado: **perfil validado no host e transferido; reteste físico pendente**.
+Carro dirigível, cenário e shader completo da engine continuam fora da
+homologação deste viewer. Não há push, PR ou comentário público desta rodada.
