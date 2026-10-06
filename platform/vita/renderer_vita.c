@@ -93,10 +93,11 @@ fail:
     vita_renderer_destroy(r); return NULL;
 }
 
-int vita_renderer_draw(VitaRenderer *r, int asset_ok, int paused) {
+int vita_renderer_draw(VitaRenderer *r, int asset_ok, int paused, int loading) {
     const float identity[16] = {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     glViewport(0, 0, VITA_WIDTH, VITA_HEIGHT);
-    glClearColor(asset_ok ? 0.02f : 0.14f, asset_ok ? 0.13f : 0.02f, 0.05f, 1);
+    if (paused) glClearColor(0.02f, 0.05f, 0.45f, 1); /* Explicit pause diagnostic. */
+    else glClearColor(asset_ok ? 0.02f : 0.14f, asset_ok ? 0.13f : 0.02f, 0.05f, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE);
     glUseProgram(r->program); glUniformMatrix4fv(r->mvp, 1, GL_FALSE, identity);
@@ -107,6 +108,12 @@ int vita_renderer_draw(VitaRenderer *r, int asset_ok, int paused) {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ProbeVertex), (const void *)offsetof(ProbeVertex, xyz));
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ProbeVertex), (const void *)offsetof(ProbeVertex, uv));
     glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, NULL);
+    if (loading) {
+        /* CPU retry progress indicator, with no extra allocations/draw calls. */
+        glEnable(GL_SCISSOR_TEST); glScissor(0, 0, VITA_WIDTH, 8);
+        glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_SCISSOR_TEST);
+    }
     GLenum error = glGetError();
     if (error != GL_NO_ERROR) { vita_log("draw failed: 0x%x\n", (unsigned)error); return 0; }
     return 1;
