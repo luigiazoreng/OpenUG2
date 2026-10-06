@@ -1,0 +1,24 @@
+--- a/source/utils/glsl_utils.c
++++ b/source/utils/glsl_utils.c
+@@ -1174,6 +1174,8 @@
+ 			if (para_left < 0)
+ 				found = 1;
+ 			break;
++		case '&':
++		case '|':
+ 		case '!':
+ 		case '=':
+ 		case '>':
+@@ -1225,6 +1227,12 @@
+ 			if (para_left < 0)
+ 				found = 1;
+ 			break;
++		case '&':
++		case '|':
++		case '!':
++		case '=':
++		case '?':
++		case '/':
+ 		case '>':
+ 		case '<':
+ 		case ',':

@@ -1,5 +1,11 @@
 # Handoff — engine e integração Vita até o item 5
 
+A quarta coleta confirmou timeout dentro da compilação do fragment shader.
+O Cg recuperado expôs corrupção de precedência no tradutor. A correção e a
+reprodução antes/depois estão em
+[VITA_GLSL_PRECEDENCE.md](VITA_GLSL_PRECEDENCE.md); a homologação física
+continua pendente.
+
 O terceiro teste físico ficou bloqueado no link do shader, antes do input.
 A nova branch de startup, a pesquisa em fontes oficiais e o monitor de saída
 estão em [VITA_STARTUP_HANG.md](VITA_STARTUP_HANG.md). O reteste ainda é
