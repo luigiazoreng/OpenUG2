@@ -59,5 +59,27 @@ no Linux e `-j1`. O archive instalado no SDK e os pacotes anteriores ficam
 preservados. Logs e receitas desta rodada ficam em
 `nfsu2-data/reports/vita-item5-2026-10-06/startup-fix/`.
 
-Estado: correções preparadas; comportamento do compilador, resposta do
-monitor e renderização do carro ainda precisam de reteste físico.
+## Pacote e revisão
+
+Compilado com árvore limpa em `3aee809214edf809299607c79b34bd12b7b8e821`, dez
+unidades C sob `-Wall -Wextra -Werror`, sem warnings. Pico da dependência:
+353,4 MiB; do aplicativo: 178,0 MiB. Os dois builds passaram. O teste real do
+monitor com shims passou ASan/UBSan; os testes de tooling tiveram 16 passes e
+um skip preexistente (17 casos). O fixture USB confere também nonce de anexos
+atuais e preservação/identificação de fonte Cg antiga.
+
+- Archive privado: `aea53f0247d57cedd5f4429f0ba5ced209119db8c73f4063eb536771262d13f1`
+- VPK: `488d0cba8ff30dd62c67f16964e73073d6037e22646a3b764e96d698858b116b`
+- eboot: `99d8589679541018d21092eb3c5bfd110d89969ef949a37a43908a36b43f3357`
+- Sessão: `4408ecde1e194276aaa5eede`
+
+Bundle privado em
+`nfsu2-data/vita/stock-240sx-startup-fix-2026-10-06/ready/`.
+O novo VPK e nonce foram transferidos para `ux0:data/openug2/`, preservando
+os três assets coincidentes. Os cinco arquivos passaram readback após sync;
+o USB foi desmontado. Instalar `car-viewer.vpk`, abrir o aplicativo e depois
+reativar USB no VitaShell para coletar os logs e fontes traduzidos.
+
+Estado: **transferido, aguardando reteste físico**. O comportamento do
+compilador, a resposta do monitor e a renderização do carro continuam sem
+homologação física. Não há push, comentário de issue ou PR desta rodada.
