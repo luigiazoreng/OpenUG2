@@ -1,0 +1,127 @@
+# Vita stock-car viewer bundle and test procedure
+
+`tools/vita_car_bundle.py` prepares one review bundle from exactly these data
+files: `CARS/240SX/GEOMETRY.BIN`, `CARS/240SX/TEXTURES.BIN`, and
+`GLOBAL/GLOBALB.BUN`. Each input is limited to 32 MiB. The tool validates that
+the supplied VPK contains only `eboot.bin` and `sce_sys/param.sfo`, checks the
+`OPENUG200` title, and verifies ZIP CRCs. It copies and hashes files in 64 KiB
+chunks; it does not commit or fetch retail assets.
+
+Prepare a new output directory for each attempt:
+
+```sh
+python3 tools/vita_car_bundle.py prepare \
+  --data-root /path/to/retail-data \
+  --vpk build/vita-car-viewer.vpk \
+  --output /path/to/new/car-viewer-bundle-01
+```
+
+The command creates `car-viewer-bundle-01/ready/` with the three assets under
+`data/openug2/`, the VPK at `data/openug2/openug2-vita.vpk`,
+`data/openug2/diagnostic-session.txt`, and `manifest.json`. The manifest records
+a fresh 24-hex-character run ID, source asset paths and SHA-256/size, VPK hash,
+Git revision/dirty state as build identity, required log path, and expected
+diagnostic markers. The VPK is only staged; it is never installed by this
+command.
+
+Connect the Vita in USB mode and mount its `ux0:` volume on the host. Deploy
+only from a prepared `ready/` directory:
+
+```sh
+python3 tools/vita_car_bundle.py deploy \
+  --bundle /path/to/car-viewer-bundle-01/ready \
+  --usb-root /media/$USER/Vita
+```
+
+The tool refuses symlinked or escaping paths. It preserves an existing asset
+when the SHA-256 and size match, and refuses to overwrite an asset whose
+content differs. It writes the viewer VPK only to the canonical
+`ux0:data/openug2/car-viewer.vpk` path using a temporary file and atomic
+replacement, then streams each staged asset and the canonical VPK back to the
+host and compares hashes. It does not touch `ux0:app/OPENUG200` or uninstall
+an application.
+Install the staged VPK manually with VitaShell, then launch the viewer.
+
+The expected log is `ux0:data/openug2/vita-car-viewer.log`, copied to the host
+as `VITA_ROOT/data/openug2/vita-car-viewer.log`. Reconnect USB after exiting
+the viewer and collect into a new directory:
+
+```sh
+python3 tools/vita_car_bundle.py collect \
+  --bundle /path/to/car-viewer-bundle-01/ready \
+  --usb-root /media/$USER/Vita \
+  --output /path/to/new/car-viewer-evidence-01
+```
+
+Collection is bounded to a 2 MiB log and a 32 MiB installed executable. It
+compares `ux0:app/OPENUG200/eboot.bin` against `eboot.bin` inside the bundled
+VPK. It rejects a stale/mismatched session run ID or an installed executable
+whose hash differs. Logs and executable are copied before association; the
+new output directory is exclusive and retained if collection fails.
+
+The machine log protocol is intentionally simple and line based. The viewer
+should emit exactly one of each session/suite/ready/shutdown record, and one
+final status for every probe:
+
+```text
+CAR SESSION run_id=<24 lowercase hex characters>
+GPU SUITE passed=<N> failed=0 unsupported=<K>
+engine_program=PASS
+framebuffer_depth=PASS
+rgba_alpha=PASS
+dxt1_rgba_fallback=PASS
+dxt3_rgba_fallback=PASS
+dxt5_rgba_fallback=PASS
+mip_sampling=PASS
+mip_generation=PASS
+CAR READY meshes=<positive> textures=<positive> wheels=<positive>
+CAR SHUTDOWN frames=<positive> status=0
+```
+
+The parser requires every named probe to be `PASS`. Native DXT compression may
+be unsupported if all three RGBA fallback probes pass. A logged
+`shader_fallback=FAIL` or `shader fallback failed` is fatal. A successful
+machine report is `APPROVED_HOST_ONLY`; that means the bundle, installed
+executable, and machine-readable run evidence agree. It does not claim that
+the car looked correct or that controls worked. Missing or failing machine
+evidence yields `DEVICE_REVIEW_REQUIRED`. `result.json` explicitly lists the
+manual observations still required; this collector does not infer them from
+logs or synthesize visual/input evidence.
+
+## Vita operator review
+
+After installing and launching the VPK, perform and record these checks on the
+actual device:
+
+1. Confirm the 240SX is a real car with four visible wheels and expected body
+   and wheel textures; record a device photo or video separately from the
+   generated machine report.
+2. Steer with the left stick and verify the front wheels visibly respond.
+3. Press Start to pause and resume.
+4. Press Triangle to cycle the camera preset.
+5. Press Square to toggle lights.
+6. Press Cross to cycle the color preset.
+7. Press Select+Start to exit, then reconnect USB and collect the log.
+
+Record the Vita model, firmware, VitaShell version, whether each step passed,
+and any device capture path in the review notes. A successful `collect`
+command alone remains host-only approval until these observations are
+reviewed. If the current viewer control mapping differs, update this procedure
+to match the implementation before hardware sign-off; do not treat a command
+being accepted as evidence that its visible behavior is correct.
+
+## Synthetic host tests
+
+Run filesystem-only tests under the shared validation lock:
+
+```sh
+flock /tmp/openug2-validation.lock python3 tools/vita_car_bundle_test.py
+python3 -m py_compile tools/vita_car_bundle.py tools/vita_car_bundle_test.py
+```
+
+The tests use temporary files and a fake USB root. They cover VPK validation,
+exclusive output paths, streaming size limits, traversal and symlink refusal,
+asset mismatch preservation, VPK staging/replacement, readback, valid log
+collection, stale run IDs, shader fallback failure, required probe failure,
+and installed executable drift. They do not contact a Vita, compile the
+engine, or perform device/rendering approval.
