@@ -58,6 +58,7 @@ class EvidenceTest(unittest.TestCase):
                  GOOD_LOG + "draw failed: 0x1\n",
                  GOOD_LOG + "240SX parser: asset unavailable (0.0 ms)\n",
                  GOOD_LOG + "shader type=0x8b31 failed: error\n",
+                 GOOD_LOG + "asset retry thread failed: error\n",
                  GOOD_LOG + "built-in controller unavailable: error\n",
                  GOOD_LOG.replace("frames=900 status=0", "frames=0 status=0")]
         for log in cases:

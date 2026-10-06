@@ -268,7 +268,7 @@ def assess(log, previous, current, observations):
         # telemetry or the red background for a missing/failed asset.
         "no_reported_failure": not re.search(
             r"^(?:shader type=.* failed:|shader link failed:|required uniforms missing|"
-            r"GPU resource upload failed:|draw failed:|240SX parser:|"
+            r"GPU resource upload failed:|draw failed:|240SX parser:|asset retry thread failed:|"
             r"unexpected drawable size|built-in controller unavailable:|controller mapping:|"
             r"(?:SDL init|GL attributes|window|context|timer init):|GL version=unavailable)",
             log, re.MULTILINE),

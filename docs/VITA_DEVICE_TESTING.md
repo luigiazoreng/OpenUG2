@@ -306,3 +306,70 @@ dois segundos, depois pressione novamente. Teste SELECT+START e reconecte
 VitaShell. O executável anterior e seus relatórios permanecem preservados
 no worktree principal. **Pausa/saída no console com a correção ainda estão
 pendentes**; não houve publicação em issue.
+
+### START confirmado; releitura por Cross sem bloquear entrada
+
+A execução do VPK diagnóstico foi recolhida em
+`vita-20261006T013114Z-db26315c/collection-a44e2ec1/`. O usuário confirmou START
+e mudança de cor; o log mostra **18 alternâncias de pausa**, leitura nativa
+de START, evento SDL e `pause_pressed=1`. Há eventos de Cross, Circle, Square,
+Triangle e SELECT. Ainda não há saída limpa nem cobertura completa de ombros
+e ambos os sentidos do analógico nessa execução.
+
+O usuário relatou que Cross parecia desativar START. O log mostra START
+alternando depois de Cross, mas cada uma das sete releituras ocupou o loop
+de entrada/render por **2.776–2.826 ms**. Isso cria uma janela em que pressões
+completas podem ser perdidas. `start-cross-summary.json` preserva a análise
+e o relato; não se atribui um estado permanente de bloqueio sem evidência.
+
+A nova versão executa somente a **releitura solicitada por Cross** em um
+worker CPU, com stack de 128 KiB e um único pedido ativo. O
+[backend Vita do SDL 2.32.8](https://github.com/libsdl-org/SDL/blob/release-2.32.8/src/thread/vita/SDL_systhread.c)
+usa o stack solicitado. O guard de arquivo de 32 MiB e heap de 128 MiB
+permanecem; a leitura inicial antes do primeiro frame continua síncrona.
+Não há chamadas GL/logs no worker; a thread principal recolhe o resultado
+por flag atômica e mantém o controle exclusivo do renderer. Em saída, espera
+a tarefa antes de encerrar SDL e fechar o log. Não há parsers concorrentes:
+o parser stock contém estado estático e este desenho não oferece uma API
+geral de parsing paralelo para a engine.
+
+Uma faixa branca na base indica a releitura em andamento. START continua
+alternando fundo verde/azul nesse período. Pedidos adicionais de Cross
+enquanto ocupado são ignorados e registrados; Cross não altera a pausa.
+
+Validação:
+
+- `tools/vita_asset_job_test.c`: **17 checks**, com parser bloqueado por
+  semáforo e prova de que START e SELECT+START são lidos durante o trabalho;
+  pedido duplicado, sucesso, falha, retomada e join também verificados.
+- `tools/vita_asset_job_real_test.c`: **três decodes** do 240SX real em worker,
+  contagens iguais e main continuando a consultar o resultado; ASan/UBSan/LSan
+  sem erros. Pico de 53,1 MiB no host.
+- Ferramenta USB/FTP: **seis testes**, incluindo o diagnóstico de falha ao
+  criar thread, que impede aprovação automática da coleta.
+- VPK compilado com `-Wall -Wextra -Werror`, zero warnings, um job, guard
+  512 MiB. Pico de **138,3 MiB**, mínimo de aproximadamente 6,1 GiB livres.
+
+Os testes host de lifecycle podem ser reproduzidos com `sdl2-config`:
+
+```bash
+cc -std=c99 -O2 -Wall -Wextra -Werror $(sdl2-config --cflags) \
+  tools/vita_asset_job_test.c platform/vita/asset_job.c platform/vita/platform.c \
+  $(sdl2-config --libs) -lm -o /tmp/vita-asset-job-test
+/tmp/vita-asset-job-test
+```
+
+Para o teste real, compile `tools/vita_asset_job_real_test.c`, `asset_job.c`
+e `asset_probe.c` com `-Isrc`, SDL, zlib e libm; adicione sanitizers e mantenha
+a exceção existente `-Wno-unused-function` do parser header. Passe apenas o
+root dos dados PC do usuário. Evidência:
+`../nfsu2-data/reports/vita-cross-retry-2026-10-05/`.
+
+VPK: **1.150.311 bytes**, SHA-256
+`4b841e4844622f8d5f86668b0d440dc9ade614475ca257a24229c9bd20ab98e2`.
+**A releitura assíncrona ainda precisa de teste físico.** Após instalar esta
+atualização e abrir, aperte Cross e, enquanto a faixa branca estiver presente,
+aperte START uma vez; espere o parser concluir e aperte START novamente.
+Para sair, **segure SELECT e aperte START mantendo SELECT pressionado**;
+depois reative USB no VitaShell para a coleta. Não publique resultado de
+homologação completa antes dessa validação e dos controles restantes.

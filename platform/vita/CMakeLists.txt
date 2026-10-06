@@ -41,7 +41,7 @@ if(NOT TITLEID_LENGTH EQUAL 9 OR NOT OPENUG2_VITA_TITLEID MATCHES "^[A-Z0-9]+$")
   message(FATAL_ERROR "OPENUG2_VITA_TITLEID must contain nine uppercase letters/digits")
 endif()
 
-add_executable(openug2_vita main.c platform.c renderer_vita.c asset_probe.c)
+add_executable(openug2_vita main.c platform.c renderer_vita.c asset_probe.c asset_job.c)
 set_target_properties(openug2_vita PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES
   LINKER_LANGUAGE CXX) # vitaGL's GLSL translator is C++; engine sources stay C.
 target_compile_options(openug2_vita PRIVATE -Wall -Wextra -Wno-unused-function)
